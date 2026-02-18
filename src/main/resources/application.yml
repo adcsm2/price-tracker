@@ -3,9 +3,9 @@ spring:
     name: price-tracker
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/pricetracker}
+    username: ${SPRING_DATASOURCE_USERNAME:pricetracker}
+    password: ${SPRING_DATASOURCE_PASSWORD:password}
 
   jpa:
     hibernate:
