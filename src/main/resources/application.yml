@@ -12,6 +12,10 @@ spring:
       ddl-auto: validate
     show-sql: true
 
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
 scraper:
   rate-limit:
     amazon: 2.0
