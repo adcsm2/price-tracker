@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: price-tracker
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+
+scraper:
+  rate-limit:
+    amazon: 2.0
+    pccomponentes: 2.0
