@@ -34,7 +34,7 @@ public class ScrapingJob {
 
     private Integer itemsFound;
 
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String errorMessage;
 
     private LocalDateTime startedAt;
