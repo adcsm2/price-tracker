@@ -46,3 +46,20 @@ docker-compose down                       # Stop PostgreSQL
 - Test naming: `should_ExpectedBehavior_When_StateUnderTest`
 - Test fixtures in `src/test/resources/fixtures/`
 - Credentials via environment variables (`.env` file, never hardcoded). `.env` is gitignored; `.env.example` is committed as template.
+
+## Git Workflow
+
+**ALWAYS target `develop` when creating PRs from feature branches. NEVER target `main` directly.**
+
+```
+feat/* → develop → main
+```
+
+- Feature branches are created from `develop`
+- PRs from feature branches always use `--base develop` explicitly
+- `develop → main` is a separate PR after the feature is validated on develop
+- When creating PRs with `gh pr create`, ALWAYS pass `--base develop`:
+
+```bash
+gh pr create --base develop --title "..." --body "..."
+```
