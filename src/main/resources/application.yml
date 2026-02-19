@@ -19,4 +19,4 @@ spring:
 scraper:
   rate-limit:
     amazon: 2.0
-    pccomponentes: 2.0
+    mediamarkt: 2.0
