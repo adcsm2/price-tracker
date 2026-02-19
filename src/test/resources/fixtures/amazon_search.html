@@ -1,0 +1,54 @@
+<html>
+<body>
+<div class="s-main-slot">
+  <!-- Product 1: Full product with price -->
+  <div data-component-type="s-search-result" data-asin="B0TEST001">
+    <h2>
+      <a class="a-link-normal" href="/dp/B0TEST001/ref=test">
+        <span>NVIDIA GeForce RTX 4070 SUPER 12GB GDDR6X</span>
+      </a>
+    </h2>
+    <div class="a-section">
+      <span class="a-price">
+        <span class="a-price-whole">599<span class="a-price-decimal">,</span></span>
+        <span class="a-price-fraction">99</span>
+      </span>
+    </div>
+    <img class="s-image" src="https://m.media-amazon.com/images/I/test1.jpg" alt="RTX 4070">
+  </div>
+
+  <!-- Product 2: Product with different price format -->
+  <div data-component-type="s-search-result" data-asin="B0TEST002">
+    <h2>
+      <a class="a-link-normal" href="/dp/B0TEST002/ref=test">
+        <span>MSI GeForce RTX 4070 SUPER VENTUS 3X OC</span>
+      </a>
+    </h2>
+    <div class="a-section">
+      <span class="a-price">
+        <span class="a-price-whole">649<span class="a-price-decimal">,</span></span>
+        <span class="a-price-fraction">00</span>
+      </span>
+    </div>
+    <img class="s-image" src="https://m.media-amazon.com/images/I/test2.jpg" alt="RTX 4070">
+  </div>
+
+  <!-- Product 3: Product without price (out of stock) -->
+  <div data-component-type="s-search-result" data-asin="B0TEST003">
+    <h2>
+      <a class="a-link-normal" href="/dp/B0TEST003/ref=test">
+        <span>ASUS ROG STRIX RTX 4070 SUPER OC</span>
+      </a>
+    </h2>
+    <img class="s-image" src="https://m.media-amazon.com/images/I/test3.jpg" alt="RTX 4070">
+  </div>
+
+  <!-- Product 4: Empty element (should be filtered out) -->
+  <div data-component-type="s-search-result" data-asin="B0TEST004">
+    <div class="a-section">
+      <span>Sponsored content</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>
