@@ -19,6 +19,4 @@ spring:
 scraper:
   rate-limit:
     amazon: 2.0
-    pccomponentes: 2.0
-  pccomponentes:
-    api-url: https://www.pccomponentes.com/api/v1/search
+    mediamarkt: 2.0
