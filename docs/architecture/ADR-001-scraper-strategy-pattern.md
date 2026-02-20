@@ -1,46 +1,46 @@
-# ADR-001: Strategy Pattern para Scrapers
+# ADR-001: Strategy Pattern for Scrapers
 
-**Estado:** Aceptado
-**Fecha:** 2026-02
-**Fase:** 2 (Amazon Scraper)
-
----
-
-## Contexto
-
-El proyecto necesita scraper precios de múltiples sitios web. Cada sitio tiene una estructura HTML completamente diferente:
-- Amazon: HTML server-rendered con atributos `data-component-type`
-- MediaMarkt: SPA React con JSON-LD embebido
-- PCComponentes: API JSON interna (bloqueada por Cloudflare)
-
-La lógica de scraping de cada sitio es independiente y no tiene nada en común más allá de la interfaz (recibir keyword, devolver lista de productos).
+**Status:** Accepted
+**Date:** 2026-02
+**Phase:** 2 (Amazon Scraper)
 
 ---
 
-## Problema
+## Context
 
-¿Cómo organizar el código de scraping para que sea extensible (añadir sitios nuevos fácilmente) sin modificar el código existente?
+The project needs to scrape prices from multiple websites. Each site has a completely different HTML structure:
+- Amazon: server-rendered HTML with `data-component-type` attributes
+- MediaMarkt: React SPA with embedded JSON-LD
+- PCComponentes: internal JSON API (blocked by Cloudflare)
+
+The scraping logic for each site is independent and shares nothing beyond the interface (receive keyword, return list of products).
 
 ---
 
-## Opciones consideradas
+## Problem
 
-### Opción 1: Un método con if/else por sitio
+How to organise the scraping code so it is extensible (easily add new sites) without modifying existing code?
+
+---
+
+## Options considered
+
+### Option 1: Single method with if/else per site
 
 ```java
 public List<ScrapedProductDTO> scrape(String keyword, ScraperType type) {
     if (type == AMAZON) {
-        // lógica Amazon
+        // Amazon logic
     } else if (type == MEDIAMARKT) {
-        // lógica MediaMarkt
+        // MediaMarkt logic
     }
 }
 ```
 
-**Pros:** Simple al inicio, sin abstracciones
-**Contras:** Viola Open/Closed Principle. Añadir un sitio requiere modificar este método. Difícil de testear en aislamiento. Un error en un sitio puede afectar a otros.
+**Pros:** Simple initially, no abstractions.
+**Cons:** Violates the Open/Closed Principle. Adding a site requires modifying this method. Hard to test in isolation. A bug in one site can affect others.
 
-### Opción 2: Herencia (`AbstractScraper`)
+### Option 2: Inheritance (`AbstractScraper`)
 
 ```java
 public abstract class AbstractScraper {
@@ -52,10 +52,10 @@ public abstract class AbstractScraper {
 }
 ```
 
-**Pros:** Comparte código común (rate limiting, retry)
-**Contras:** La herencia es rígida. Si un scraper necesita un enfoque radicalmente diferente (RestTemplate en vez de Jsoup, como PCComponentes inicialmente), se complica. Además, la lógica de fetch+parse puede ser muy diferente entre sitios.
+**Pros:** Shares common code (rate limiting, retry).
+**Cons:** Inheritance is rigid. If a scraper needs a radically different approach (RestTemplate instead of Jsoup, as PCComponentes initially required), it gets complicated. The fetch+parse logic can also differ significantly between sites.
 
-### Opción 3: Strategy Pattern con interfaz ✅
+### Option 3: Strategy Pattern with interface ✅
 
 ```java
 public interface SiteScraper {
@@ -64,34 +64,34 @@ public interface SiteScraper {
 }
 ```
 
-Cada scraper es un `@Service` independiente que implementa la interfaz. `ScraperFactory` los registra automáticamente vía Spring DI.
+Each scraper is an independent `@Service` that implements the interface. `ScraperFactory` registers them automatically via Spring DI.
 
-**Pros:** Extensible sin modificar código existente. Cada scraper es totalmente independiente y testeable. Spring inyecta automáticamente todos los scrapers. Clara separación de responsabilidades.
-**Contras:** Más clases. No hay reutilización explícita de código entre scrapers (aunque esto es una ventaja en este caso).
-
----
-
-## Decisión
-
-**Opción 3: Strategy Pattern.**
-
-El criterio decisivo fue la extensibilidad y la heterogeneidad de los scrapers. Al descubrir que PCComponentes requería RestTemplate en lugar de Jsoup (y luego que ni eso funcionaba), quedó claro que cada sitio puede requerir un enfoque completamente diferente. La herencia habría forzado acoplamiento artificial.
+**Pros:** Extensible without modifying existing code. Each scraper is fully independent and testable. Spring injects all scrapers automatically. Clear separation of concerns.
+**Cons:** More classes. No explicit code reuse between scrapers (though this is actually an advantage here).
 
 ---
 
-## Consecuencias
+## Decision
 
-### Positivas
-- Añadir un scraper nuevo = crear una clase `@Service` que implemente `SiteScraper`. Cero cambios en código existente.
-- Cada scraper se puede testear de forma completamente independiente.
-- El código de cada sitio está autocontenido: fácil de leer, mantener y depurar.
+**Option 3: Strategy Pattern.**
 
-### Negativas
-- Duplicación de setup (RateLimiter, Retryable) en cada scraper. Aceptable porque cada sitio puede necesitar configuración diferente.
+The decisive criterion was extensibility and scraper heterogeneity. When it became clear that PCComponentes required RestTemplate instead of Jsoup (and then that even that was blocked), it was obvious that each site may need a completely different approach. Inheritance would have forced artificial coupling.
 
 ---
 
-## Implementación
+## Consequences
+
+### Positive
+- Adding a new scraper = create a `@Service` class implementing `SiteScraper`. Zero changes to existing code.
+- Each scraper can be tested completely independently.
+- Each site's code is self-contained: easy to read, maintain and debug.
+
+### Negative
+- Duplication of setup (RateLimiter, Retryable) in each scraper. Acceptable because each site may need different configuration.
+
+---
+
+## Implementation
 
 ```
 SiteScraper (interface)
@@ -99,15 +99,15 @@ SiteScraper (interface)
 └── MediaMarktScraper (@Service) → Jsoup + JSON-LD parsing
 
 ScraperFactory (@Service)
-└── Recibe List<SiteScraper> por DI → Map<ScraperType, SiteScraper>
+└── Receives List<SiteScraper> via DI → Map<ScraperType, SiteScraper>
 ```
 
-Spring inyecta automáticamente todos los beans `SiteScraper` en la lista, sin registro manual.
+Spring automatically injects all `SiteScraper` beans into the list, with no manual registration.
 
 ---
 
-## Referencias
+## References
 
 - [Strategy Pattern - Refactoring Guru](https://refactoring.guru/design-patterns/strategy)
 - [Open/Closed Principle](https://en.wikipedia.org/wiki/Open%E2%80%93closed_principle)
-- Ver Learning 007 para detalles de implementación
+- See Learning 007 for implementation details

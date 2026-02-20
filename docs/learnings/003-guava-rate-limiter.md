@@ -1,40 +1,40 @@
 # Learning 003: Guava RateLimiter
 
-**Fase:** 2 (Amazon Scraper)
-**Fecha:** 2026-02
-**Tecnología:** Google Guava 32.1.3
+**Phase:** 2 (Amazon Scraper)
+**Date:** 2026-02
+**Technology:** Google Guava 32.1.3
 
 ---
 
-## ¿Qué es?
+## What is it?
 
-`RateLimiter` de Guava implementa el algoritmo **Token Bucket**: genera tokens a una tasa constante y los consumidores deben adquirir un token antes de proceder. Si no hay tokens disponibles, el hilo se bloquea hasta que haya uno.
-
----
-
-## ¿Por qué lo necesitamos?
-
-Al hacer web scraping, bombardear un servidor con requests puede:
-- Resultar en IP ban
-- Sobrecargar el servidor (problema ético y legal)
-- Generar respuestas 429 Too Many Requests
-
-La solución es limitar la velocidad de requests a un máximo configurable por sitio.
+Guava's `RateLimiter` implements the **Token Bucket** algorithm: it generates tokens at a constant rate and consumers must acquire a token before proceeding. If no tokens are available, the thread blocks until one is generated.
 
 ---
 
-## Implementación en el proyecto
+## Why do we need it?
 
-### Configuración por sitio en application.yml
+Bombarding a server with requests during web scraping can:
+- Result in an IP ban
+- Overload the target server (an ethical and legal concern)
+- Generate 429 Too Many Requests responses
+
+The solution is to limit the request rate to a configurable maximum per site.
+
+---
+
+## Implementation in the project
+
+### Per-site configuration in application.yml
 
 ```yaml
 scraper:
   rate-limit:
-    amazon: 2.0       # 2 requests/segundo
-    mediamarkt: 2.0   # 2 requests/segundo
+    amazon: 2.0       # 2 requests/second
+    mediamarkt: 2.0   # 2 requests/second
 ```
 
-### Un RateLimiter por scraper
+### One RateLimiter per scraper
 
 ```java
 // AmazonScraper.java
@@ -44,17 +44,17 @@ public class AmazonScraper implements SiteScraper {
 
     public AmazonScraper(ScraperConfig scraperConfig) {
         double rate = scraperConfig.getRateLimitForSite("amazon");
-        this.rateLimiter = RateLimiter.create(rate);  // tokens/segundo
+        this.rateLimiter = RateLimiter.create(rate);  // tokens/second
     }
 
     public Document fetchSearchPage(String keyword) throws IOException {
-        rateLimiter.acquire();  // Bloquea hasta que haya un token disponible
-        // ... hace el request
+        rateLimiter.acquire();  // Blocks until a token is available
+        // ... makes the request
     }
 }
 ```
 
-### Configuración centralizada
+### Centralised configuration
 
 ```java
 // ScraperConfig.java
@@ -71,60 +71,60 @@ public class ScraperConfig {
 
 ---
 
-## Cómo funciona el Token Bucket
+## How Token Bucket works
 
 ```
-Tiempo:  0s    0.5s   1s    1.5s   2s
+Time:    0s    0.5s   1s    1.5s   2s
 Tokens:  [■■]  [■■■]  [■■■■■] [■■]  [■■■]
           ↓                   ↓
         acquire()           acquire()
-        (inmediato)         (inmediato)
+        (immediate)         (immediate)
 ```
 
-Con `RateLimiter.create(2.0)`:
-- Se generan 2 tokens por segundo
-- `acquire()` consume 1 token
-- Si no hay tokens, espera hasta que se genere uno
-- Los tokens se acumulan (hasta cierto límite) si no se consumen
+With `RateLimiter.create(2.0)`:
+- 2 tokens are generated per second
+- `acquire()` consumes 1 token
+- If no tokens available, waits until one is generated
+- Tokens accumulate (up to a limit) if not consumed
 
 ---
 
-## En tests: rate alto para no ralentizar
+## In tests: high rate to avoid slowing down
 
 ```java
 @BeforeEach
 void setUp() {
     ScraperConfig config = new ScraperConfig();
-    config.setRateLimit(Map.of("amazon", 10.0));  // 10 req/sec en tests
+    config.setRateLimit(Map.of("amazon", 10.0));  // 10 req/sec in tests
     scraper = new AmazonScraper(config);
 }
 ```
 
 ---
 
-## Alternativas consideradas
+## Alternatives considered
 
-| Opción | Pros | Contras |
-|--------|------|---------|
-| **Guava RateLimiter** ✅ | Simple, built-in token bucket, sin deps extra | Solo en-proceso (no distribuido) |
-| `Thread.sleep()` | Trivial | No es adaptativo, bloquea innecesariamente |
-| `Semaphore` | Control de concurrencia | No limita por tiempo, más complejo |
-| Bucket4j | Distribuido (Redis), más features | Dependencia extra, overkill para este proyecto |
-| Resilience4j RateLimiter | Integrado con Spring | Más config, overkill |
-
----
-
-## Limitación: solo en-proceso
-
-Si escaláramos a múltiples instancias de la aplicación, cada una tendría su propio `RateLimiter` y la limitación real sería `rate × nInstancias`. Para ese escenario habría que usar un rate limiter distribuido (ej: Bucket4j + Redis).
-
-Para este proyecto (single instance, portfolio), Guava es más que suficiente.
+| Option | Pros | Cons |
+|---|---|---|
+| **Guava RateLimiter** ✅ | Simple, built-in token bucket, no extra deps | Single-process only (not distributed) |
+| `Thread.sleep()` | Trivial | Not adaptive, blocks unnecessarily |
+| `Semaphore` | Concurrency control | Does not limit by time, more complex |
+| Bucket4j | Distributed (Redis), more features | Extra dependency, overkill for this project |
+| Resilience4j RateLimiter | Spring integration | More config, overkill |
 
 ---
 
-## Referencias
+## Limitation: single-process only
+
+If we scaled to multiple application instances, each would have its own `RateLimiter` and the actual limit would be `rate × nInstances`. For that scenario a distributed rate limiter (e.g. Bucket4j + Redis) would be needed.
+
+For this project (single instance, portfolio), Guava is more than sufficient.
+
+---
+
+## References
 
 - [Guava RateLimiter Javadoc](https://guava.dev/releases/32.0/api/docs/com/google/common/util/concurrent/RateLimiter.html)
 - [Token Bucket Algorithm](https://en.wikipedia.org/wiki/Token_bucket)
-- Ver ADR-002 para la decisión de elegir Guava frente a otras opciones
+- See ADR-002 for the decision to choose Guava over other options
 - `AmazonScraper.java`, `MediaMarktScraper.java`, `ScraperConfig.java`

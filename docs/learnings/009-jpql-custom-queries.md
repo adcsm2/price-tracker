@@ -1,34 +1,34 @@
 # Learning 009: JPQL Custom Queries
 
-**Fase:** 3 (Product CRUD)
-**Fecha:** 2026-02
-**Tecnología:** Spring Data JPA, JPQL, `@Query`
+**Phase:** 3 (Product CRUD)
+**Date:** 2026-02
+**Technology:** Spring Data JPA, JPQL, `@Query`
 
 ---
 
-## ¿Qué es?
+## What is it?
 
-**JPQL** (Java Persistence Query Language) es el lenguaje de consultas de JPA. Similar a SQL pero trabaja sobre entidades Java, no sobre tablas. Spring Data JPA permite definir queries JPQL con `@Query` cuando los métodos derivados (`findByXxx`) no son suficientes.
+**JPQL** (Java Persistence Query Language) is JPA's query language. Similar to SQL but works on Java entities, not tables. Spring Data JPA allows defining JPQL queries with `@Query` when derived methods (`findByXxx`) are not sufficient.
 
 ---
 
-## ¿Por qué lo necesitamos?
+## Why do we need it?
 
-Los métodos derivados de Spring Data son convenientes para queries simples, pero tienen límites:
+Spring Data derived methods are convenient for simple queries, but have limits:
 
 ```java
-// Spring Data puede derivar esto automáticamente
+// Spring Data can derive this automatically
 List<Product> findByCategory(String category);
 
-// ❌ Spring Data NO puede derivar esto (soft delete + filtros opcionales combinados)
+// ❌ Spring Data CANNOT derive this (soft delete + optional combined filters)
 List<Product> findAllActiveWithFilters(String category, String keyword, BigDecimal min, BigDecimal max);
 ```
 
 ---
 
-## Queries implementadas en ProductRepository
+## Queries implemented in ProductRepository
 
-### Filtrar solo activos (sin soft delete)
+### Filter active only (excluding soft-deleted)
 
 ```java
 @Query("SELECT p FROM Product p WHERE p.deletedAt IS NULL")
@@ -38,7 +38,7 @@ List<Product> findAllActive();
 Optional<Product> findActiveById(@Param("id") Long id);
 ```
 
-### Búsqueda por keyword (case-insensitive)
+### Keyword search (case-insensitive)
 
 ```java
 @Query("SELECT p FROM Product p WHERE p.deletedAt IS NULL " +
@@ -46,9 +46,9 @@ Optional<Product> findActiveById(@Param("id") Long id);
 List<Product> searchByKeyword(@Param("keyword") String keyword);
 ```
 
-**Técnica clave**: `:keyword IS NULL OR ...` hace el parámetro opcional. Si se pasa `null`, la condición del keyword se ignora.
+**Key technique**: `:keyword IS NULL OR ...` makes the parameter optional. If `null` is passed, the keyword condition is ignored.
 
-### Filtros de precio
+### Price filters
 
 ```java
 @Query("SELECT p FROM Product p " +
@@ -71,23 +71,23 @@ List<Product> findByPriceRange(@Param("minPrice") BigDecimal minPrice,
                                 @Param("maxPrice") BigDecimal maxPrice);
 ```
 
-### JOIN en JPQL vs SQL
+### JOIN in JPQL vs SQL
 
-En JPQL se navega por las relaciones definidas en las entidades, no por nombres de tablas:
+In JPQL you navigate through relationships defined on the entities, not table names:
 
 ```java
-// JPQL: navega por la relación @OneToMany "listings"
+// JPQL: navigates through the @OneToMany "listings" relationship
 "JOIN p.listings l"
 
-// SQL equivalente:
+// Equivalent SQL:
 "JOIN product_listings l ON l.product_id = p.id"
 ```
 
 ---
 
-## Lógica de filtros combinados en el Service
+## Combined filter logic in the Service
 
-El `ProductService` combina los filtros con lógica condicional en Java:
+`ProductService` combines filters with conditional logic in Java:
 
 ```java
 public List<ProductDTO> findAll(String category, String keyword,
@@ -111,23 +111,23 @@ public List<ProductDTO> findAll(String category, String keyword,
 
 ---
 
-## JPQL vs SQL nativo
+## JPQL vs native SQL
 
-| Característica | JPQL | SQL nativo (`nativeQuery=true`) |
-|---------------|------|--------------------------------|
-| Sintaxis | Entidades Java | Tablas SQL |
-| Portabilidad | Independiente de BD | Depende del dialecto SQL |
-| Funciones específicas | Limitadas | Todas las de la BD |
-| Cuándo usarlo | Mayoría de casos | Funciones específicas (window functions, JSONB, etc.) |
+| Feature | JPQL | Native SQL (`nativeQuery=true`) |
+|---|---|---|
+| Syntax | Java entities | SQL tables |
+| Portability | Database-independent | Depends on SQL dialect |
+| DB-specific functions | Limited | All DB functions available |
+| When to use | Most cases | Specific functions (window functions, JSONB, etc.) |
 
 ---
 
-## Alternativa: Criteria API y Specification
+## Alternative: Criteria API and Specification
 
-Para filtros muy dinámicos, Spring Data soporta `JpaSpecificationExecutor`:
+For highly dynamic filters, Spring Data supports `JpaSpecificationExecutor`:
 
 ```java
-// Permite construir queries dinámicas programáticamente
+// Allows building dynamic queries programmatically
 Specification<Product> spec = Specification
     .where(ProductSpecifications.isActive())
     .and(ProductSpecifications.hasCategory(category))
@@ -136,11 +136,11 @@ Specification<Product> spec = Specification
 List<Product> results = productRepository.findAll(spec);
 ```
 
-Más flexible pero más verboso. Para este proyecto, los filtros son suficientemente simples para JPQL + lógica Java.
+More flexible but more verbose. For this project, the filters are simple enough for JPQL + Java logic.
 
 ---
 
-## Referencias
+## References
 
 - [Spring Data JPA @Query](https://docs.spring.io/spring-data/jpa/docs/current/reference/html/#jpa.query-methods.at-query)
 - [JPQL Reference](https://docs.oracle.com/javaee/7/tutorial/persistence-querylanguage.htm)

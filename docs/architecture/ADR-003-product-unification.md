@@ -1,88 +1,88 @@
-# ADR-003: Modelo de Unificación de Productos
+# ADR-003: Product Unification Model
 
-**Estado:** Aceptado
-**Fecha:** 2026-02
-**Fase:** 6 (Price History + Analytics)
-
----
-
-## Contexto
-
-El proyecto scrape el mismo producto físico (ej. "ASUS TUF RTX 4070") en múltiples tiendas (Amazon, MediaMarkt). Sin una estrategia de unificación, tendríamos:
-
-- Una fila por tienda, sin relación entre ellas → imposible comparar precios entre sitios
-- Historial de precios desconectado por producto canónico
-- Analytics sin sentido (¿cuál es "el precio" de un producto si existen N filas?)
+**Status:** Accepted
+**Date:** 2026-02
+**Phase:** 6 (Price History + Analytics)
 
 ---
 
-## Problema
+## Context
 
-¿Cómo modelar que el mismo producto físico aparece en varias tiendas, cada una con su propia URL, precio y disponibilidad, manteniendo un historial de precios unificado?
+The project scrapes the same physical product (e.g. "ASUS TUF RTX 4070") across multiple stores (Amazon, MediaMarkt). Without a unification strategy, we would have:
+
+- One row per store with no relationship between them → impossible to compare prices across sites
+- Price history disconnected from a canonical product
+- Meaningless analytics (what is "the price" of a product if there are N rows?)
 
 ---
 
-## Decisión
+## Problem
 
-Modelo de tres capas:
+How to model the fact that the same physical product appears in multiple stores, each with its own URL, price and availability, while maintaining a unified price history?
+
+---
+
+## Decision
+
+Three-layer model:
 
 ```
-Product (canónico)
-  └── ProductListing (una fila por tienda)
-        └── PriceHistory (registro temporal de cada scrape)
+Product (canonical)
+  └── ProductListing (one row per store)
+        └── PriceHistory (time-series record of each scrape)
 ```
 
-**`Product`** representa el producto físico. Se crea una sola vez, identificado por nombre (case-insensitive). Es la entidad sobre la que se crean alertas y se calculan analytics.
+**`Product`** represents the physical product. Created once, identified by name (case-insensitive). This is the entity on which alerts are created and analytics are computed.
 
-**`ProductListing`** representa la presencia de ese producto en una tienda concreta. Tiene restricción única `(product_id, source_id)` para evitar duplicados. Almacena `currentPrice`, `inStock`, `lastScrapedAt`.
+**`ProductListing`** represents the presence of that product in a specific store. Has a unique constraint `(product_id, source_id)` to prevent duplicates. Stores `currentPrice`, `inStock`, `lastScrapedAt`.
 
-**`PriceHistory`** registra cada scrape con timestamp. Es append-only, nunca se modifica. Permite calcular variaciones, tendencias y comparativas en el tiempo.
+**`PriceHistory`** records each scrape with a timestamp. Append-only, never modified. Enables calculating variations, trends and comparisons over time.
 
-### Estrategia de matching por nombre
+### Name-based matching strategy
 
-Cuando se scrape un producto nuevo:
-1. Buscar `ProductListing` por URL exacta → si existe, actualizar precio
-2. Si no existe → buscar `Product` por nombre (case-insensitive) → reutilizar si existe
-3. Si no existe producto → crear nuevo `Product` + `ProductListing`
+When a new product is scraped:
+1. Look up `ProductListing` by exact URL → if found, update price
+2. If not found → look up `Product` by name (case-insensitive) → reuse if found
+3. If no product exists → create new `Product` + `ProductListing`
 
-Este matching por nombre permite que "ASUS TUF RTX 4070" de Amazon y de MediaMarkt compartan la misma fila de `Product`, y sus precios sean comparables vía `PriceComparison`.
+This name matching allows "ASUS TUF RTX 4070" from Amazon and from MediaMarkt to share the same `Product` row, making their prices comparable via `PriceComparison`.
 
-### Transacciones por ítem con TransactionTemplate
+### Per-item transactions with TransactionTemplate
 
-`ProductUnificationService.saveResults()` usa `TransactionTemplate.executeWithoutResult()` en lugar de `@Transactional` en el método público. Motivo: si se usa `@Transactional` + try/catch en el mismo método, al capturar una excepción JPA la transacción ya está marcada como `rollback-only`, y cualquier intento de continuar lanza `UnexpectedRollbackException`.
+`ProductUnificationService.saveResults()` uses `TransactionTemplate.executeWithoutResult()` instead of `@Transactional` on the public method. Reason: using `@Transactional` + try/catch in the same method marks the transaction as `rollback-only` when a JPA exception is caught, and any attempt to continue throws `UnexpectedRollbackException`.
 
-Con `TransactionTemplate`, cada ítem se ejecuta en su propia transacción independiente. Un fallo en el ítem N no afecta a los ítems N+1..M.
+With `TransactionTemplate`, each item runs in its own independent transaction. A failure on item N does not affect items N+1..M.
 
 ---
 
-## Alternativas descartadas
+## Rejected alternatives
 
-### Una tabla plana por scrape
+### Flat table per scrape
 
 ```
 scrape_results(id, site, name, price, url, scraped_at)
 ```
 
-**Descartada** porque no permite agrupar el mismo producto entre sitios, comparar precios entre tiendas ni calcular tendencias de un producto canónico.
+**Rejected** because it does not allow grouping the same product across sites, comparing prices between stores, or computing trends for a canonical product.
 
-### Matching por URL solamente
+### URL-only matching
 
-Sin matching por nombre, Amazon y MediaMarkt siempre crearían `Product` distintos aunque sean el mismo artículo físico. El modelo canónico perdería su razón de ser.
+Without name matching, Amazon and MediaMarkt would always create separate `Product` rows even for the same physical item. The canonical model would lose its purpose.
 
-### @Transactional + savepoint manual
+### `@Transactional` + manual savepoint
 
-Más complejo, no portable entre proveedores JPA. `TransactionTemplate` es la solución idiomática de Spring para transacciones programáticas.
+More complex, not portable across JPA providers. `TransactionTemplate` is the idiomatic Spring solution for programmatic transactions.
 
 ---
 
-## Consecuencias
+## Consequences
 
-**Positivas:**
-- Analytics y comparativas de precio entre tiendas son triviales
-- El historial de precios es por producto canónico, no por listing
-- Un fallo al guardar un ítem no cancela todo el batch
+**Positive:**
+- Analytics and cross-site price comparisons are trivial to implement
+- Price history is per canonical product, not per listing
+- A failure saving one item does not cancel the whole batch
 
-**Negativas:**
-- El matching por nombre es frágil: "ASUS TUF RTX 4070 Ti" vs "ASUS TUF Gaming RTX 4070 Ti" crearían productos distintos aunque sean el mismo
-- Sin normalización de nombres, la unificación entre sitios en producción real sería parcial
-- Solución aceptable para portfolio, pero en producción requeriría fuzzy matching o un catálogo de productos externo (EAN/ASIN)
+**Negative:**
+- Name matching is fragile: "ASUS TUF RTX 4070 Ti" vs "ASUS TUF Gaming RTX 4070 Ti" would create separate products even if they are the same item
+- Without name normalisation, cross-site unification in real production would be partial
+- Acceptable for a portfolio project, but production would require fuzzy matching or an external product catalogue (EAN/ASIN)

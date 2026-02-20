@@ -1,92 +1,92 @@
-# ADR-003: Selección de Segundo Sitio ante Bloqueo de Cloudflare
+# ADR-004: Site Selection After Cloudflare Blocking
 
-**Estado:** Aceptado
-**Fecha:** 2026-02
-**Fase:** 4 (Segundo Scraper)
+**Status:** Accepted
+**Date:** 2026-02
+**Phase:** 4 (Second Scraper)
 
 ---
 
-## Contexto
+## Context
 
-La Fase 4 planificaba PCComponentes como segundo sitio a scraper. Durante el desarrollo se descubrió que PCComponentes bloquea los clientes HTTP no-browser con Cloudflare's **Interactive Challenge** (`cType: interactive`).
+Phase 4 planned PCComponentes as the second site to scrape. During development it was discovered that PCComponentes blocks non-browser HTTP clients with Cloudflare's **Interactive Challenge** (`cType: interactive`).
 
-Historial del proceso:
+History of the investigation:
 
-1. **Intento 1**: Jsoup directo → Cloudflare lo bloquea (el HTML tiene un desafío JS en lugar de los datos)
-2. **Intento 2**: Descubrir la API JSON interna del sitio (`/api/articles/search`) y acceder con RestTemplate → también bloqueado con 403 + Cloudflare challenge
-3. **Diagnóstico**: El error de la respuesta confirma el tipo de bloqueo:
+1. **Attempt 1**: Direct Jsoup → Cloudflare blocks it (the HTML contains a JS challenge instead of data)
+2. **Attempt 2**: Discover the site's internal JSON API (`/api/articles/search`) and access it with RestTemplate → also blocked with 403 + Cloudflare challenge
+3. **Diagnosis**: The response error confirms the block type:
    ```
    ERROR: HttpClientErrorException$Forbidden - 403 Forbidden
    response: "cType: 'interactive'" ... "Enable JavaScript and cookies to continue"
    ```
 
-El challenge interactivo de Cloudflare requiere ejecución de JavaScript real y resolución de cookies criptográficas. Ningún cliente HTTP estándar (Jsoup, RestTemplate, HttpClient) puede resolverlo.
+Cloudflare's Interactive Challenge requires real JavaScript execution and cryptographic cookie resolution. No standard HTTP client (Jsoup, RestTemplate, HttpClient) can solve it.
 
 ---
 
-## Problema
+## Problem
 
-¿Cómo proceder con el segundo scraper dado que PCComponentes bloquea todos los clientes HTTP?
+How to proceed with the second scraper given that PCComponentes blocks all HTTP clients?
 
 ---
 
-## Opciones consideradas
+## Options considered
 
-### Opción 1: Selenium/Playwright para PCComponentes
+### Option 1: Selenium/Playwright for PCComponentes
 
-Usar un navegador headless (Chrome/Firefox) que ejecute JavaScript y resuelva el challenge automáticamente.
+Use a headless browser (Chrome/Firefox) that executes JavaScript and resolves the challenge automatically.
 
-**Pros:** Solución técnicamente completa. PCComponentes sería funcional.
-**Contras:**
-- Requiere ChromeDriver o Playwright binaries (>100MB)
-- Consume mucha más CPU/memoria que Jsoup
-- Los requests tardan 3-5 segundos en lugar de ~200ms
-- Cloudflare puede seguir detectando headless browsers y bloquearlos
-- Añade complejidad operativa significativa sin aportar valor nuevo al patrón Strategy (ya demostrado con Amazon)
+**Pros:** Technically complete solution. PCComponentes would be functional.
+**Cons:**
+- Requires ChromeDriver or Playwright binaries (>100MB)
+- Much higher CPU/memory usage than Jsoup
+- Requests take 3-5 seconds instead of ~200ms
+- Cloudflare may still detect headless browsers and block them
+- Adds significant operational complexity without adding new value to the Strategy Pattern (already demonstrated with Amazon)
 
-### Opción 2: Scraping API (ScraperAPI, BrightData)
+### Option 2: Scraping API (ScraperAPI, BrightData)
 
-Usar un servicio proxy que maneje el bypass de Cloudflare. El request va a través de su infraestructura.
+Use a proxy service that handles the Cloudflare bypass. Requests route through their infrastructure.
 
-**Pros:** No requiere cambios de arquitectura. Solo cambia la URL del request.
-**Contras:** Dependencia de servicio externo de pago (aunque tiene free tier). Introduce latencia extra. Para un portfolio educativo, añade complejidad de configuración sin valor pedagógico claro.
+**Pros:** No architectural changes needed. Only the request URL changes.
+**Cons:** Dependency on a paid external service (though with a free tier). Adds extra latency. For an educational portfolio, adds configuration complexity without clear pedagogical value.
 
-### Opción 3: Cambiar al sitio PCComponentes → MediaMarkt y documentar el bloqueo ✅
+### Option 3: Switch from PCComponentes to MediaMarkt and document the block ✅
 
-Reemplazar PCComponentes con MediaMarkt ES, que:
-- No usa Cloudflare Interactive Challenge
-- Aunque es SPA (React), embebe datos estructurados en **JSON-LD** (`schema.org/ItemList`) que Jsoup puede extraer directamente sin ejecutar JS
+Replace PCComponentes with MediaMarkt ES, which:
+- Does not use Cloudflare Interactive Challenge
+- Although it is a SPA (React), it embeds structured data as **JSON-LD** (`schema.org/ItemList`) that Jsoup can extract directly without executing JS
 
-Documentar el bloqueo de PCComponentes en el README como decisión arquitectónica consciente.
+Document the PCComponentes block in the README as a conscious architectural decision.
 
 **Pros:**
-- Scraper funcional con la misma arquitectura (Jsoup)
-- Demuestra capacidad de adaptación ante obstáculos reales
-- JSON-LD es más robusto que CSS selectors (no cambia con redesigns de UI)
-- El bloqueo de PCComponentes es una realidad del sector que vale la pena documentar
+- Functional scraper using the same architecture (Jsoup)
+- Demonstrates ability to adapt to real-world obstacles
+- JSON-LD is more robust than CSS selectors (does not change with UI redesigns)
+- The PCComponentes blocking is a real industry issue worth documenting
 
-**Contras:** PCComponentes no está en el portfolio final como sitio funcional.
+**Cons:** PCComponentes is not in the final portfolio as a functional site.
 
-### Opción 4: Mock/simulación de PCComponentes
+### Option 4: Mock/simulation of PCComponentes
 
-Implementar un scraper que devuelva datos ficticios hardcodeados para demostrar el patrón.
+Implement a scraper that returns hardcoded fake data to demonstrate the pattern.
 
-**Pros:** Sin bloqueos, patrón demostrado.
-**Contras:** Deshonesto en un proyecto de portfolio. No demuestra scraping real.
-
----
-
-## Decisión
-
-**Opción 3: MediaMarkt ES con JSON-LD.**
-
-El criterio principal fue maximizar el valor del portfolio: demostrar que funciona algo real (scraping de verdad, contra un sitio real, con datos reales) y documentar honestamente el obstáculo de Cloudflare con sus implicaciones técnicas.
+**Pros:** No blocking, pattern demonstrated.
+**Cons:** Dishonest in a portfolio project. Does not demonstrate real scraping.
 
 ---
 
-## Técnica de scraping elegida para MediaMarkt
+## Decision
 
-MediaMarkt usa React (SPA), por lo que el HTML estándar no contiene los datos. Sin embargo, la página incluye un `<script type="application/ld+json">` con el schema `ItemList` de Schema.org:
+**Option 3: MediaMarkt ES with JSON-LD.**
+
+The primary criterion was maximising portfolio value: demonstrate that something real works (real scraping, against a real site, with real data) and honestly document the Cloudflare obstacle with its technical implications.
+
+---
+
+## MediaMarkt scraping technique
+
+MediaMarkt uses React (SPA), so standard HTML does not contain the data. However, the page includes a `<script type="application/ld+json">` with the Schema.org `ItemList` schema:
 
 ```json
 {
@@ -108,39 +108,39 @@ MediaMarkt usa React (SPA), por lo que el HTML estándar no contiene los datos. 
 }
 ```
 
-Jsoup extrae el tag `script[type=application/ld+json]`, Jackson parsea el JSON, y se navega la estructura `ListItem → item`.
+Jsoup extracts the `script[type=application/ld+json]` tag, Jackson parses the JSON, and the structure `ListItem → item` is traversed.
 
-**Ventaja sobre CSS selectors**: El JSON-LD es semántico y estable. Los class names generados por styled-components cambian en cada deploy. El JSON-LD raramente cambia porque es para SEO.
-
----
-
-## Consecuencias
-
-### Positivas
-- Dos scrapers funcionales y reales en el portfolio
-- Demuestra capacidad de resolver problemas imprevistos en web scraping
-- MediaMarkt + JSON-LD es una técnica más robusta que CSS selectors para SPAs
-- La documentación del Cloudflare blocking es valiosa como learning
-
-### Negativas
-- PCComponentes no está soportado. Si se quisiera añadir en el futuro, habría que evaluar Playwright o un scraping proxy
+**Advantage over CSS selectors**: JSON-LD is semantic and stable. Class names generated by styled-components change on every deploy. JSON-LD rarely changes because it serves SEO purposes.
 
 ---
 
-## Lecciones aprendidas
+## Consequences
 
-1. **Las APIs internas no son públicas**: Solo porque el browser puede acceder a `/api/articles/search` no significa que un cliente HTTP lo pueda. Cloudflare protege tanto el HTML como las XHR requests.
+### Positive
+- Two functional, real scrapers in the portfolio
+- Demonstrates ability to solve unforeseen problems in web scraping
+- MediaMarkt + JSON-LD is a more robust technique than CSS selectors for SPAs
+- Documenting the Cloudflare blocking is valuable as a learning
 
-2. **JSON-LD como fuente de datos**: Los sitios modernos que usan SPAs a menudo incluyen JSON-LD para SEO. Es una técnica legítima y estable de extracción de datos.
-
-3. **Documentar los obstáculos**: En un portfolio, explicar por qué algo no funciona (y mostrar que entiendes el problema) es tan valioso como mostrarlo funcionando.
+### Negative
+- PCComponentes is not supported. Adding it in the future would require evaluating Playwright or a scraping proxy
 
 ---
 
-## Referencias
+## Lessons learned
+
+1. **Internal APIs are not public**: Just because the browser can access `/api/articles/search` does not mean an HTTP client can. Cloudflare protects both HTML and XHR requests.
+
+2. **JSON-LD as a data source**: Modern sites using SPAs often include JSON-LD for SEO. It is a legitimate and stable data extraction technique.
+
+3. **Document the obstacles**: In a portfolio, explaining why something does not work (and showing you understand the problem) is as valuable as showing it working.
+
+---
+
+## References
 
 - [Cloudflare Bot Management](https://www.cloudflare.com/products/bot-management/)
 - [Schema.org ItemList](https://schema.org/ItemList)
 - [JSON-LD Specification](https://json-ld.org/)
-- Ver Learning 001 para técnicas de Jsoup
+- See Learning 001 for Jsoup techniques
 - `MediaMarktScraper.java`, `README.md`

@@ -1,54 +1,54 @@
-# Learning 004: Retry Logic con Exponential Backoff
+# Learning 004: Retry Logic with Exponential Backoff
 
-**Fase:** 2 (Amazon Scraper)
-**Fecha:** 2026-02
-**Tecnología:** Spring Retry, `@Retryable`, `@Backoff`
+**Phase:** 2 (Amazon Scraper)
+**Date:** 2026-02
+**Technology:** Spring Retry, `@Retryable`, `@Backoff`
 
 ---
 
-## ¿Qué es?
+## What is it?
 
-El **retry con exponential backoff** es un patrón de resiliencia: cuando una operación falla por un error transitorio, se reintenta automáticamente esperando un tiempo que crece exponencialmente entre intentos.
+**Retry with exponential backoff** is a resilience pattern: when an operation fails due to a transient error, it is retried automatically, waiting a time that grows exponentially between attempts.
 
 ```
-Intento 1 → falla → espera 1s
-Intento 2 → falla → espera 2s
-Intento 3 → falla → lanza excepción
+Attempt 1 → fails → wait 1s
+Attempt 2 → fails → wait 2s
+Attempt 3 → fails → throw exception
 ```
 
 ---
 
-## ¿Por qué lo necesitamos?
+## Why do we need it?
 
-El scraping puede fallar por razones transitorias:
-- Timeout de red puntual
-- El servidor devuelve 503 temporalmente
-- Pico de tráfico en el servidor objetivo
+Scraping can fail for transient reasons:
+- Occasional network timeout
+- The server returns a temporary 503
+- Traffic spike on the target server
 
-Reintentar automáticamente hace el scraper mucho más robusto sin código manual de loops y contadores.
+Retrying automatically makes the scraper much more resilient without manual loop and counter code.
 
 ---
 
-## Implementación con Spring Retry
+## Implementation with Spring Retry
 
-### Habilitación en la configuración
+### Enable in configuration
 
 ```java
 // ScraperConfig.java
 @Configuration
-@EnableRetry  // ← Activa el soporte de @Retryable en toda la app
+@EnableRetry  // ← Activates @Retryable support throughout the app
 public class ScraperConfig {
     // ...
 }
 ```
 
-### Anotación en el método que puede fallar
+### Annotation on the method that can fail
 
 ```java
 // AmazonScraper.java
 @Retryable(
-        retryFor = IOException.class,   // Solo reintenta para este tipo
-        maxAttempts = 3,                 // Máximo 3 intentos
+        retryFor = IOException.class,   // Only retries for this type
+        maxAttempts = 3,                 // Maximum 3 attempts
         backoff = @Backoff(delay = 1000, multiplier = 2)  // 1s, 2s
 )
 public Document fetchSearchPage(String keyword) throws IOException {
@@ -57,16 +57,16 @@ public Document fetchSearchPage(String keyword) throws IOException {
 }
 ```
 
-### Separación entre fetch y parse
+### Separation between fetch and parse
 
-Importante: `@Retryable` está en `fetchSearchPage()`, no en `scrape()`. Así se reintenta solo la parte de red, no el parsing:
+Important: `@Retryable` is on `fetchSearchPage()`, not on `scrape()`. This way only the network part is retried, not the parsing:
 
 ```java
 @Override
 public List<ScrapedProductDTO> scrape(String keyword, String category) {
     try {
-        Document doc = fetchSearchPage(keyword);  // ← retry aquí
-        return parseSearchResults(doc);            // ← no retry aquí
+        Document doc = fetchSearchPage(keyword);  // ← retry here
+        return parseSearchResults(doc);            // ← no retry here
     } catch (IOException e) {
         log.error("Error scraping Amazon: {}", e.getMessage());
         return new ArrayList<>();
@@ -76,24 +76,24 @@ public List<ScrapedProductDTO> scrape(String keyword, String category) {
 
 ---
 
-## Cómo funciona `@Retryable` internamente
+## How `@Retryable` works internally
 
-Spring Retry usa AOP (proxies). La clase debe ser un bean Spring para que funcione. Si llamas al método `fetchSearchPage()` desde dentro de la misma clase con `this.fetchSearchPage()`, el proxy se salta → no funciona el retry.
+Spring Retry uses AOP (proxies). The class must be a Spring bean for it to work. If you call `fetchSearchPage()` from within the same class using `this.fetchSearchPage()`, the proxy is bypassed → retry does not work.
 
-Por eso, `scrape()` llama a `fetchSearchPage()` directamente (no `this.`), pero al ser llamado desde el controlador (a través del proxy), el retry SÍ funciona.
+This is why `scrape()` calls `fetchSearchPage()` directly (not `this.`), but since it is called from the controller (through the proxy), the retry DOES work.
 
 ---
 
-## Configuración de backoff
+## Backoff configuration
 
 ```java
 @Backoff(delay = 1000, multiplier = 2)
-// Intento 1 falla → espera 1000ms
-// Intento 2 falla → espera 2000ms (1000 × 2)
-// Intento 3 falla → lanza la excepción
+// Attempt 1 fails → wait 1000ms
+// Attempt 2 fails → wait 2000ms (1000 × 2)
+// Attempt 3 fails → throw the exception
 ```
 
-Con `maxDelay` podría limitarse el tiempo máximo de espera:
+With `maxDelay` the maximum wait time could be capped:
 ```java
 @Backoff(delay = 1000, multiplier = 2, maxDelay = 10000)
 ```
@@ -102,30 +102,29 @@ Con `maxDelay` podría limitarse el tiempo máximo de espera:
 
 ## Graceful degradation
 
-Si todos los reintentos fallan, el scraper devuelve lista vacía en lugar de propagar la excepción:
+If all retries fail, the scraper returns an empty list instead of propagating the exception:
 
 ```java
 } catch (IOException e) {
     log.error("Error scraping Amazon for keyword '{}': {}", keyword, e.getMessage());
-    return new ArrayList<>();  // ← nunca falla el endpoint, devuelve vacío
+    return new ArrayList<>();  // ← endpoint never fails, returns empty
 }
 ```
 
 ---
 
-## Alternativas consideradas
+## Alternatives considered
 
-| Opción | Pros | Contras |
-|--------|------|---------|
-| **Spring Retry** ✅ | Integrado en Spring, anotación simple | Requiere `@EnableRetry` |
-| Manual (try/catch loop) | Sin dependencias | Código repetitivo, difícil de mantener |
-| Resilience4j | Más features (circuit breaker, bulkhead) | Más configuración, overkill para este caso |
-| Polly (C#) | N/A | Wrong language |
+| Option | Pros | Cons |
+|---|---|---|
+| **Spring Retry** ✅ | Spring-integrated, simple annotation | Requires `@EnableRetry` |
+| Manual (try/catch loop) | No dependencies | Repetitive code, hard to maintain |
+| Resilience4j | More features (circuit breaker, bulkhead) | More configuration, overkill for this case |
 
 ---
 
-## Referencias
+## References
 
 - [Spring Retry Documentation](https://github.com/spring-projects/spring-retry)
-- [Exponential Backoff con Jitter](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/)
+- [Exponential Backoff and Jitter](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/)
 - `AmazonScraper.java`, `MediaMarktScraper.java`
