@@ -145,9 +145,9 @@ This builds the app image and starts both the database and the application.
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/api/jobs` | List all scraping jobs |
-| `POST` | `/api/jobs` | Create a scraping job |
-| `POST` | `/api/jobs/{id}/run` | Trigger a job manually |
+| `GET` | `/api/scraping/jobs` | List all scraping jobs |
+| `POST` | `/api/scraping/jobs` | Create a scraping job |
+| `POST` | `/api/scraping/jobs/{id}/run` | Trigger a job manually |
 
 ### Analytics
 
@@ -188,12 +188,12 @@ PRICE ALERT: 'ASUS TUF RTX 4070' is now 489.00€ (target: 500.00€) — notify
 
 ```bash
 # Create a MediaMarkt job (sourceId=2)
-curl -X POST http://localhost:8080/api/jobs \
+curl -X POST http://localhost:8080/api/scraping/jobs \
   -H "Content-Type: application/json" \
   -d '{"keyword": "rtx 4070", "sourceId": 2}'
 
 # Run it immediately
-curl -X POST http://localhost:8080/api/jobs/1/run
+curl -X POST http://localhost:8080/api/scraping/jobs/1/run
 ```
 
 ## Tests
