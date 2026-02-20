@@ -1,46 +1,46 @@
-# ADR-002: Rate Limiting con Guava RateLimiter
+# ADR-002: Rate Limiting with Guava RateLimiter
 
-**Estado:** Aceptado
-**Fecha:** 2026-02
-**Fase:** 2 (Amazon Scraper)
-
----
-
-## Contexto
-
-El scraper hace requests HTTP a sitios de terceros. Sin control de velocidad, podría:
-- Generar un ban de IP por parte del sitio
-- Sobrecargar el servidor objetivo (problema ético)
-- Recibir respuestas 429 Too Many Requests
-
-Necesitamos un mecanismo que limite la tasa de requests a un máximo configurable por sitio.
+**Status:** Accepted
+**Date:** 2026-02
+**Phase:** 2 (Amazon Scraper)
 
 ---
 
-## Problema
+## Context
 
-¿Cómo implementar rate limiting por sitio de forma simple, configurable y correcta?
+The scraper makes HTTP requests to third-party websites. Without rate control, it could:
+- Trigger an IP ban from the target site
+- Overload the target server (an ethical concern)
+- Receive 429 Too Many Requests responses
+
+We need a mechanism that limits the request rate to a configurable maximum per site.
 
 ---
 
-## Opciones consideradas
+## Problem
 
-### Opción 1: `Thread.sleep()` fijo
+How to implement per-site rate limiting in a simple, configurable and correct way?
+
+---
+
+## Options considered
+
+### Option 1: Fixed `Thread.sleep()`
 
 ```java
 public Document fetchPage(String url) throws IOException {
-    Thread.sleep(500);  // espera 500ms entre requests
+    Thread.sleep(500);  // wait 500ms between requests
     return Jsoup.connect(url).get();
 }
 ```
 
-**Pros:** Trivial de implementar, sin dependencias.
-**Contras:** No es adaptativo. Si el request tarda 450ms, la pausa total es 950ms, no 500ms. El delay es fijo independientemente de la carga. Si se usa concurrencia, `sleep` en un hilo no impide que otros hagan requests simultáneamente.
+**Pros:** Trivial to implement, no dependencies.
+**Cons:** Not adaptive. If the request takes 450ms, the total pause is 950ms, not 500ms. The delay is fixed regardless of load. With concurrency, `sleep` on one thread does not prevent others from making simultaneous requests.
 
-### Opción 2: `Semaphore` de Java
+### Option 2: Java `Semaphore`
 
 ```java
-private final Semaphore semaphore = new Semaphore(1);  // 1 request a la vez
+private final Semaphore semaphore = new Semaphore(1);  // 1 request at a time
 
 public Document fetchPage(String url) throws IOException {
     semaphore.acquire();
@@ -52,76 +52,76 @@ public Document fetchPage(String url) throws IOException {
 }
 ```
 
-**Pros:** Thread-safe, control de concurrencia.
-**Contras:** Controla concurrencia, no velocidad. No garantiza un máximo de N requests por segundo, solo que hay máximo 1 a la vez. Para simular rate limiting habría que combinar con sleep, aumentando la complejidad.
+**Pros:** Thread-safe, concurrency control.
+**Cons:** Controls concurrency, not throughput. Does not guarantee a maximum of N requests per second, only that at most 1 runs at a time. Simulating rate limiting would require combining with sleep, increasing complexity.
 
-### Opción 3: Guava RateLimiter ✅
+### Option 3: Guava RateLimiter ✅
 
 ```java
 private final RateLimiter rateLimiter = RateLimiter.create(2.0);
 
 public Document fetchPage(String url) throws IOException {
-    rateLimiter.acquire();  // Bloquea hasta que haya un token
+    rateLimiter.acquire();  // Blocks until a token is available
     return Jsoup.connect(url).get();
 }
 ```
 
-**Pros:** Implementa Token Bucket correctamente. Thread-safe. Configurable (tokens/segundo). `acquire()` bloquea el tiempo mínimo necesario. Ya incluida en Guava (ya teníamos la dependencia).
+**Pros:** Correct Token Bucket implementation. Thread-safe. Configurable (tokens/second). `acquire()` blocks for the minimum necessary time. Already included in Guava (dependency already present).
 
-**Contras:** Solo funciona en un único proceso (no distribuido). Pero para este proyecto (una sola instancia) es suficiente.
+**Cons:** Only works within a single process (not distributed). Sufficient for this project (single instance).
 
-### Opción 4: Bucket4j con Redis
+### Option 4: Bucket4j with Redis
 
-Rate limiting distribuido usando Redis como almacén compartido de tokens.
+Distributed rate limiting using Redis as a shared token store.
 
-**Pros:** Funciona con múltiples instancias de la aplicación.
-**Contras:** Requiere Redis (infraestructura extra), dependencia adicional, mucha más configuración. Overkill para un proyecto de portfolio con una sola instancia.
-
----
-
-## Decisión
-
-**Opción 3: Guava RateLimiter.**
-
-Es la opción que proporciona el comportamiento correcto (Token Bucket, thread-safe, configurable) con el menor coste de complejidad. Guava ya estaba en el classpath por otra razón, así que no añade dependencia nueva.
+**Pros:** Works across multiple application instances.
+**Cons:** Requires Redis (extra infrastructure), additional dependency, much more configuration. Overkill for a single-instance portfolio project.
 
 ---
 
-## Consecuencias
+## Decision
 
-### Positivas
-- 2 líneas de código por scraper para rate limiting correcto
-- Configurable por sitio desde `application.yml`
-- Thread-safe sin código adicional
+**Option 3: Guava RateLimiter.**
 
-### Negativas
-- Solo funciona en un proceso. Si el proyecto escala a múltiples instancias (fuera del scope del portfolio), habría que migrar a Bucket4j + Redis.
+Provides the correct behaviour (Token Bucket, thread-safe, configurable) at the lowest complexity cost. Guava was already on the classpath for another reason, so no new dependency is added.
 
 ---
 
-## Configuración
+## Consequences
+
+### Positive
+- 2 lines of code per scraper for correct rate limiting
+- Configurable per site from `application.yml`
+- Thread-safe with no additional code
+
+### Negative
+- Only works in a single process. If the project scales to multiple instances (out of portfolio scope), migration to Bucket4j + Redis would be needed.
+
+---
+
+## Configuration
 
 ```yaml
 # application.yml
 scraper:
   rate-limit:
-    amazon: 2.0      # 2 req/seg
-    mediamarkt: 2.0  # 2 req/seg
+    amazon: 2.0      # 2 req/sec
+    mediamarkt: 2.0  # 2 req/sec
 ```
 
 ```java
 // ScraperConfig.java
 public double getRateLimitForSite(String site) {
-    return rateLimit.getOrDefault(site, 2.0);  // Default seguro
+    return rateLimit.getOrDefault(site, 2.0);  // Safe default
 }
 ```
 
-En tests se configura con rate alto (10 req/seg) para no ralentizar la suite.
+In tests, a high rate (10 req/sec) is configured to avoid slowing down the test suite.
 
 ---
 
-## Referencias
+## References
 
 - [Guava RateLimiter](https://guava.dev/releases/32.0/api/docs/com/google/common/util/concurrent/RateLimiter.html)
 - [Token Bucket Algorithm](https://en.wikipedia.org/wiki/Token_bucket)
-- Ver Learning 003 para detalles de implementación
+- See Learning 003 for implementation details
