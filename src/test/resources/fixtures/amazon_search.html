@@ -49,6 +49,38 @@
       <span>Sponsored content</span>
     </div>
   </div>
+
+  <!-- Product 5: New Amazon structure where <a> wraps <h2> instead of being inside it -->
+  <div data-component-type="s-search-result" data-asin="B0TEST005">
+    <div class="a-section">
+      <a class="a-link-normal s-line-clamp-4" href="/dp/B0TEST005/ref=test">
+        <h2 class="a-size-base-plus a-spacing-none a-color-base a-text-normal">
+          <span>Palit RTX 4070 SUPER JetStream OC</span>
+        </h2>
+      </a>
+    </div>
+    <div class="a-section">
+      <span class="a-price">
+        <span class="a-offscreen">€619,99</span>
+      </span>
+    </div>
+    <img class="s-image" src="https://m.media-amazon.com/images/I/test5b.jpg" alt="RTX 4070">
+  </div>
+
+  <!-- Product 6: Price only in .a-offscreen (no .a-price-whole) — tests the offscreen fallback -->
+  <div data-component-type="s-search-result" data-asin="B0TEST006">
+    <h2>
+      <a class="a-link-normal" href="/dp/B0TEST006/ref=test">
+        <span>Gigabyte RTX 4070 WINDFORCE OC</span>
+      </a>
+    </h2>
+    <div class="a-section">
+      <span class="a-price">
+        <span class="a-offscreen">€549,00</span>
+      </span>
+    </div>
+    <img class="s-image" src="https://m.media-amazon.com/images/I/test6.jpg" alt="RTX 4070">
+  </div>
 </div>
 </body>
 </html>

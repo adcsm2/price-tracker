@@ -18,4 +18,6 @@ public interface ProductListingRepository extends JpaRepository<ProductListing, 
 
     @Query("SELECT pl FROM ProductListing pl WHERE pl.product.id = :productId ORDER BY pl.currentPrice ASC")
     List<ProductListing> findByProductIdOrderByPriceAsc(@Param("productId") Long productId);
+
+    Optional<ProductListing> findByUrl(String url);
 }

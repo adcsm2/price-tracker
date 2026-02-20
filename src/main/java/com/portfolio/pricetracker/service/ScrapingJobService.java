@@ -28,6 +28,7 @@ public class ScrapingJobService {
     private final ScrapingJobRepository jobRepository;
     private final WebsiteSourceRepository sourceRepository;
     private final ScraperFactory scraperFactory;
+    private final ProductUnificationService productUnificationService;
 
     @Transactional
     public ScrapingJobDTO createJob(CreateScrapingJobRequest request) {
@@ -72,6 +73,7 @@ public class ScrapingJobService {
         try {
             SiteScraper scraper = scraperFactory.getScraper(job.getSource().getScraperType());
             List<ScrapedProductDTO> results = scraper.scrape(job.getSearchKeyword(), job.getCategory());
+            productUnificationService.saveResults(results, job.getSource());
 
             job.setStatus(JobStatus.COMPLETED);
             job.setItemsFound(results.size());
