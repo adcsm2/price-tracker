@@ -22,6 +22,7 @@ public class ProductUnificationService {
     private final ProductListingRepository listingRepository;
     private final PriceHistoryRepository priceHistoryRepository;
     private final TransactionTemplate transactionTemplate;
+    private final PriceAlertService priceAlertService;
 
     /**
      * Each item runs in its own transaction via TransactionTemplate.
@@ -60,6 +61,8 @@ public class ProductUnificationService {
                 .scrapedAt(LocalDateTime.now())
                 .build();
         priceHistoryRepository.save(history);
+
+        priceAlertService.checkAlerts(listing.getProduct().getId(), scraped.getPrice());
     }
 
     /**

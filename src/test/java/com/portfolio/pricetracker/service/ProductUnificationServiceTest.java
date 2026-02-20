@@ -32,6 +32,7 @@ class ProductUnificationServiceTest {
     @Mock private ProductListingRepository listingRepository;
     @Mock private PriceHistoryRepository priceHistoryRepository;
     @Mock private TransactionTemplate transactionTemplate;
+    @Mock private PriceAlertService priceAlertService;
 
     @InjectMocks
     private ProductUnificationService service;
@@ -138,7 +139,7 @@ class ProductUnificationServiceTest {
 
         service.saveResults(List.of(scraped), amazonSource);
 
-        verifyNoInteractions(listingRepository, productRepository, priceHistoryRepository);
+        verifyNoInteractions(listingRepository, productRepository, priceHistoryRepository, priceAlertService);
     }
 
     @Test
@@ -148,7 +149,86 @@ class ProductUnificationServiceTest {
 
         service.saveResults(List.of(scraped), amazonSource);
 
-        verifyNoInteractions(listingRepository, productRepository, priceHistoryRepository);
+        verifyNoInteractions(listingRepository, productRepository, priceHistoryRepository, priceAlertService);
+    }
+
+    @Test
+    void should_CallCheckAlerts_When_ItemSavedSuccessfully() {
+        ScrapedProductDTO scraped = ScrapedProductDTO.builder()
+                .name("RTX 4070").price(new BigDecimal("599"))
+                .url("https://www.amazon.es/dp/B001").inStock(true).build();
+
+        Product product = Product.builder().id(1L).name("RTX 4070").build();
+        ProductListing listing = ProductListing.builder()
+                .id(1L).product(product).source(amazonSource)
+                .url("https://www.amazon.es/dp/B001").build();
+
+        when(listingRepository.findByUrl(any())).thenReturn(Optional.of(listing));
+        when(listingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(priceHistoryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.saveResults(List.of(scraped), amazonSource);
+
+        verify(priceAlertService).checkAlerts(1L, new BigDecimal("599"));
+    }
+
+    @Test
+    void should_ContinueSaving_When_OneItemThrowsException() {
+        ScrapedProductDTO failing = ScrapedProductDTO.builder()
+                .name("Failing").price(new BigDecimal("100"))
+                .url("https://bad.url").inStock(true).build();
+        ScrapedProductDTO valid = ScrapedProductDTO.builder()
+                .name("Valid").price(new BigDecimal("200"))
+                .url("https://good.url").inStock(true).build();
+
+        Product product = Product.builder().id(1L).name("Valid").build();
+        ProductListing listing = ProductListing.builder()
+                .id(1L).product(product).source(amazonSource)
+                .url("https://good.url").build();
+
+        // First call (failing item) throws; second call (valid item) executes normally
+        doThrow(new RuntimeException("DB error"))
+                .doAnswer(inv -> {
+                    ((Consumer<?>) inv.getArgument(0)).accept(null);
+                    return null;
+                }).when(transactionTemplate).executeWithoutResult(any());
+
+        when(listingRepository.findByUrl("https://good.url")).thenReturn(Optional.of(listing));
+        when(listingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(priceHistoryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.saveResults(List.of(failing, valid), amazonSource);
+
+        verify(listingRepository, times(1)).save(any());
+        verify(priceHistoryRepository, times(1)).save(any());
+    }
+
+    @Test
+    void should_UpdateListingUrl_When_SameProductSourceExistsWithDifferentUrl() {
+        ScrapedProductDTO scraped = ScrapedProductDTO.builder()
+                .name("ASUS RTX 4070").price(new BigDecimal("599"))
+                .url("https://www.amazon.es/dp/B002") // new URL
+                .inStock(true).build();
+
+        Product existingProduct = Product.builder().id(10L).name("ASUS RTX 4070").build();
+        ProductListing existingListing = ProductListing.builder()
+                .id(5L).product(existingProduct).source(amazonSource)
+                .url("https://www.amazon.es/dp/B001") // old URL
+                .build();
+
+        when(listingRepository.findByUrl("https://www.amazon.es/dp/B002")).thenReturn(Optional.empty());
+        when(productRepository.findByNameIgnoreCaseAndDeletedAtIsNull("ASUS RTX 4070"))
+                .thenReturn(Optional.of(existingProduct));
+        when(listingRepository.findByProductIdAndSourceId(10L, 1L)).thenReturn(Optional.of(existingListing));
+        when(listingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(priceHistoryRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.saveResults(List.of(scraped), amazonSource);
+
+        ArgumentCaptor<ProductListing> captor = ArgumentCaptor.forClass(ProductListing.class);
+        verify(listingRepository).save(captor.capture());
+        assertThat(captor.getValue().getUrl()).isEqualTo("https://www.amazon.es/dp/B002");
+        verify(productRepository, never()).save(any());
     }
 
     @Test
