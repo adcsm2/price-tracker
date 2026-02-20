@@ -32,4 +32,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     @Query("SELECT DISTINCT p FROM Product p JOIN p.listings l WHERE p.deletedAt IS NULL AND l.currentPrice BETWEEN :minPrice AND :maxPrice")
     List<Product> findByPriceRange(@Param("minPrice") BigDecimal minPrice, @Param("maxPrice") BigDecimal maxPrice);
+
+    Optional<Product> findByNameIgnoreCaseAndDeletedAtIsNull(String name);
 }

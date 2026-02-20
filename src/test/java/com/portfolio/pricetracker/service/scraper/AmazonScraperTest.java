@@ -51,7 +51,7 @@ class AmazonScraperTest {
 
         List<ScrapedProductDTO> products = amazonScraper.parseSearchResults(doc);
 
-        assertThat(products).hasSize(3);
+        assertThat(products).hasSize(5);
     }
 
     @Test
@@ -116,6 +116,37 @@ class AmazonScraperTest {
 
         // Product 4 has no h2/name, should be filtered
         assertThat(products).noneMatch(p -> p.getName() == null);
+    }
+
+    @Test
+    void should_ExtractUrl_When_AnchorWrapsH2() throws IOException {
+        Document doc = loadFixture("amazon_search.html");
+
+        List<ScrapedProductDTO> products = amazonScraper.parseSearchResults(doc);
+
+        ScrapedProductDTO newStructure = products.stream()
+                .filter(p -> p.getName().contains("Palit"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(newStructure.getUrl()).contains("/dp/B0TEST005");
+        assertThat(newStructure.getUrl()).startsWith("https://www.amazon.es");
+        assertThat(newStructure.getPrice()).isEqualByComparingTo(new BigDecimal("619.99"));
+    }
+
+    @Test
+    void should_ExtractPrice_Using_OffscreenFallback_When_NoStructuredElements() throws IOException {
+        Document doc = loadFixture("amazon_search.html");
+
+        List<ScrapedProductDTO> products = amazonScraper.parseSearchResults(doc);
+
+        ScrapedProductDTO offscreenProduct = products.stream()
+                .filter(p -> p.getName().contains("Gigabyte"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(offscreenProduct.getPrice()).isEqualByComparingTo(new BigDecimal("549.00"));
+        assertThat(offscreenProduct.getInStock()).isTrue();
     }
 
     @Test

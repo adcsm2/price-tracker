@@ -40,6 +40,9 @@ class ScrapingJobServiceTest {
     @Mock
     private SiteScraper siteScraper;
 
+    @Mock
+    private ProductUnificationService productUnificationService;
+
     @InjectMocks
     private ScrapingJobService service;
 
