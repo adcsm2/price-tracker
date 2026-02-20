@@ -23,6 +23,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -144,5 +145,45 @@ class PriceAlertServiceTest {
         assertThatThrownBy(() -> service.deleteAlert(99L))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessageContaining("99");
+    }
+
+    @Test
+    void should_DoNothing_When_NoActiveAlertsExist() {
+        when(alertRepository.findByProduct_IdAndStatus(1L, AlertStatus.ACTIVE))
+                .thenReturn(List.of());
+
+        service.checkAlerts(1L, new BigDecimal("450.00"));
+
+        verify(alertRepository, never()).save(any());
+        verify(alertNotifier, never()).notify(any(), any());
+    }
+
+    @Test
+    void should_TriggerOnlyMatchingAlert_When_MultipleAlertsForSameProduct() {
+        // activeAlert target=500 → triggers at 450; lowTargetAlert target=300 → does NOT trigger at 450
+        PriceAlert lowTargetAlert = PriceAlert.builder()
+                .id(11L).product(product).userEmail("other@test.com")
+                .targetPrice(new BigDecimal("300.00"))
+                .status(AlertStatus.ACTIVE).build();
+
+        when(alertRepository.findByProduct_IdAndStatus(1L, AlertStatus.ACTIVE))
+                .thenReturn(List.of(activeAlert, lowTargetAlert));
+        when(alertRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.checkAlerts(1L, new BigDecimal("450.00"));
+
+        verify(alertRepository, times(1)).save(any());
+        verify(alertNotifier, times(1)).notify(eq(activeAlert), any());
+        verify(alertNotifier, never()).notify(eq(lowTargetAlert), any());
+    }
+
+    @Test
+    void should_ReturnEmptyList_When_UserHasNoAlerts() {
+        when(alertRepository.findByUserEmailAndStatus("nobody@test.com", AlertStatus.ACTIVE))
+                .thenReturn(List.of());
+
+        List<PriceAlertDTO> result = service.getUserAlerts("nobody@test.com");
+
+        assertThat(result).isEmpty();
     }
 }
