@@ -1,31 +1,31 @@
-# ADR-005: Soft Delete con campo deletedAt
+# ADR-005: Soft Delete with deletedAt field
 
-**Estado:** Aceptado
-**Fecha:** 2026-02
-**Fase:** 3 (Product CRUD)
-
----
-
-## Contexto
-
-El proyecto necesita una estrategia para eliminar productos. Un hard delete (`DELETE FROM products`) destruye el registro permanentemente, lo que plantea problemas:
-
-- El `PriceHistory` y `ProductListing` de ese producto quedarían huérfanos (violación de FK o pérdida de datos históricos)
-- Sin posibilidad de recuperar un producto eliminado por error
-- Sin auditoría de qué productos existieron y cuándo se eliminaron
+**Status:** Accepted
+**Date:** 2026-02
+**Phase:** 3 (Product CRUD)
 
 ---
 
-## Decisión
+## Context
 
-Soft delete mediante campo `deletedAt` en la entidad `Product`:
+The project needs a strategy for deleting products. A hard delete (`DELETE FROM products`) permanently destroys the record, which raises several problems:
+
+- The `PriceHistory` and `ProductListing` for that product would become orphaned (FK violation or loss of historical data)
+- No way to recover a product deleted by mistake
+- No audit trail of which products existed and when they were removed
+
+---
+
+## Decision
+
+Soft delete using a `deletedAt` field on the `Product` entity:
 
 ```java
 @Column
-private LocalDateTime deletedAt;  // null = activo, non-null = eliminado
+private LocalDateTime deletedAt;  // null = active, non-null = deleted
 ```
 
-El service setea `deletedAt = now()` en lugar de borrar la fila. Todas las queries del repository filtran `WHERE deleted_at IS NULL`.
+The service sets `deletedAt = now()` instead of deleting the row. All repository queries filter by `WHERE deleted_at IS NULL`.
 
 ```java
 // ProductService.java
@@ -48,18 +48,18 @@ Optional<Product> findActiveById(@Param("id") Long id);
 
 ---
 
-## Alternativas descartadas
+## Rejected alternatives
 
-| Opción | Pros | Contras |
+| Option | Pros | Cons |
 |---|---|---|
-| **`deletedAt` timestamp** ✅ | Explícito, guarda cuándo se borró, estándar JPA | Hay que filtrar en cada query |
-| `@SQLDelete + @Where` de Hibernate | Automático, menos código | Magia implícita, no es JPA estándar |
-| Campo `active: boolean` | Semántico | Pierde información de cuándo se borró |
-| Hard delete | Simple | Sin auditoría, rompe historial de precios |
+| **`deletedAt` timestamp** ✅ | Explicit, records when deleted, standard JPA | Must filter in every query |
+| Hibernate `@SQLDelete + @Where` | Automatic, less code | Implicit magic, not JPA standard |
+| `active: boolean` field | Semantic | Loses information about when it was deleted |
+| Hard delete | Simple | No audit trail, breaks price history |
 
-### Por qué no `@SQLDelete + @Where`
+### Why not `@SQLDelete + @Where`
 
-Hibernate permite automatizar el soft delete:
+Hibernate allows automating soft deletes:
 
 ```java
 @SQLDelete(sql = "UPDATE products SET deleted_at = NOW() WHERE id = ?")
@@ -68,26 +68,26 @@ Hibernate permite automatizar el soft delete:
 public class Product { ... }
 ```
 
-Se descartó porque `@Where` es una anotación propietaria de Hibernate (no JPA estándar) y oculta el comportamiento. Las queries JPQL explícitas dejan claro que solo devuelven registros activos, sin magia implícita.
+Rejected because `@Where` is a Hibernate-proprietary annotation (not JPA standard) and hides the behaviour. Explicit JPQL queries make it clear that only active records are returned, with no implicit magic.
 
 ---
 
-## Consecuencias
+## Consequences
 
-**Positivas:**
-- `PriceHistory` y `ProductListing` permanecen intactos tras eliminar un producto
-- Posible auditoría y recuperación de productos eliminados
-- Integridad referencial sin cascadas destructivas
+**Positive:**
+- `PriceHistory` and `ProductListing` remain intact after deleting a product
+- Products can be audited and recovered after deletion
+- Referential integrity without destructive cascades
 
-**Negativas:**
-- Todas las queries deben filtrar `deletedAt IS NULL` explícitamente — si se olvida en una query nueva, los productos borrados reaparecen
-- Convención: todos los métodos del repository que filtran borrados usan el prefijo `Active` (`findActiveById`, `findAllActive`) para recordarlo
+**Negative:**
+- Every query must explicitly filter `deletedAt IS NULL` — if forgotten in a new query, deleted products reappear
+- Convention: all repository methods that filter deleted records use the `Active` prefix (`findActiveById`, `findAllActive`) as a reminder
 
-**Trampas a evitar:**
+**Pitfalls to avoid:**
 ```java
-// MAL: devuelve el producto aunque esté borrado
+// WRONG: returns the product even if deleted
 productRepository.findById(id);
 
-// BIEN: solo devuelve activos
+// CORRECT: returns active records only
 productRepository.findActiveById(id);
 ```
