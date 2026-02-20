@@ -32,6 +32,7 @@ class ProductUnificationServiceTest {
     @Mock private ProductListingRepository listingRepository;
     @Mock private PriceHistoryRepository priceHistoryRepository;
     @Mock private TransactionTemplate transactionTemplate;
+    @Mock private PriceAlertService priceAlertService;
 
     @InjectMocks
     private ProductUnificationService service;
