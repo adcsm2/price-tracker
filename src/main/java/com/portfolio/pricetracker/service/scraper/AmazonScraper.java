@@ -126,24 +126,44 @@ public class AmazonScraper implements SiteScraper {
     }
 
     private BigDecimal extractPrice(Element item) {
-        Element wholePrice = item.selectFirst(".a-price .a-price-whole");
-        Element fractionPrice = item.selectFirst(".a-price .a-price-fraction");
-
-        if (wholePrice == null) return null;
-
-        String whole = wholePrice.text().replace(".", "").replace(",", "").trim();
-        String fraction = fractionPrice != null ? fractionPrice.text().trim() : "00";
-
-        try {
-            return new BigDecimal(whole + "." + fraction);
-        } catch (NumberFormatException e) {
-            log.debug("Failed to parse price: {}.{}", whole, fraction);
-            return null;
+        // Primary: structured elements (.a-price-whole / .a-price-fraction)
+        Element wholeEl = item.selectFirst(".a-price .a-price-whole");
+        Element fractionEl = item.selectFirst(".a-price .a-price-fraction");
+        if (wholeEl != null) {
+            String whole = wholeEl.ownText().replace(".", "").replace(",", "").trim();
+            String fraction = fractionEl != null ? fractionEl.text().trim() : "00";
+            try {
+                if (!whole.isEmpty()) return new BigDecimal(whole + "." + fraction);
+            } catch (NumberFormatException e) {
+                log.debug("Failed to parse price whole/fraction: {}.{}", whole, fraction);
+            }
         }
+
+        // Fallback: .a-offscreen (accessibility span, present even when layout varies)
+        Element offscreen = item.selectFirst(".a-price .a-offscreen");
+        if (offscreen != null) {
+            String text = offscreen.text().replace("€", "").replace("EUR", "").trim();
+            // Spanish format uses comma as decimal separator: "549,00" → "549.00"
+            if (text.contains(",")) {
+                text = text.replace(".", "").replace(",", ".");
+            }
+            try {
+                if (!text.isEmpty()) return new BigDecimal(text);
+            } catch (NumberFormatException e) {
+                log.debug("Failed to parse offscreen price: {}", offscreen.text());
+            }
+        }
+
+        return null;
     }
 
     private String extractUrl(Element item) {
+        // Old structure: <h2><a href="...">...</a></h2>
         Element link = item.selectFirst("h2 a");
+        // New structure: <a href="..."><h2>...</h2></a>
+        if (link == null) {
+            link = item.selectFirst("a:has(h2)");
+        }
         if (link == null) return null;
 
         String href = link.attr("href");

@@ -46,3 +46,32 @@ docker-compose down                       # Stop PostgreSQL
 - Test naming: `should_ExpectedBehavior_When_StateUnderTest`
 - Test fixtures in `src/test/resources/fixtures/`
 - Credentials via environment variables (`.env` file, never hardcoded). `.env` is gitignored; `.env.example` is committed as template.
+
+## Testing Before Commit
+
+**NEVER commit or open a PR without manual testing first.**
+
+The order is always:
+1. Write code
+2. Run `./mvnw.cmd test` — all tests must pass
+3. Start the app (`./mvnw.cmd spring-boot:run`) and test the endpoints manually
+4. Only after manual verification: `git commit` and `gh pr create`
+
+If a temporary controller or endpoint is needed to test, create it, test, then delete it before committing. Do NOT commit untested code to the repository.
+
+## Git Workflow
+
+**ALWAYS target `develop` when creating PRs from feature branches. NEVER target `main` directly.**
+
+```
+feat/* → develop → main
+```
+
+- Feature branches are created from `develop`
+- PRs from feature branches always use `--base develop` explicitly
+- `develop → main` is a separate PR after the feature is validated on develop and should be done when 2-3 features habe been merged into develop
+- When creating PRs with `gh pr create`, ALWAYS pass `--base develop`:
+
+```bash
+gh pr create --base develop --title "..." --body "..."
+```
