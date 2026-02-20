@@ -1,18 +1,18 @@
 # Learning 002: Spring Data JPA Relationships
 
-**Fase:** 1 (Setup + Entities)
-**Fecha:** 2026-02
-**Tecnología:** Spring Data JPA, Hibernate, PostgreSQL
+**Phase:** 1 (Setup + Entities)
+**Date:** 2026-02
+**Technology:** Spring Data JPA, Hibernate, PostgreSQL
 
 ---
 
-## ¿Qué es?
+## What is it?
 
-Spring Data JPA es una abstracción sobre Hibernate/JPA que simplifica el acceso a datos. Permite definir relaciones entre entidades con anotaciones y genera SQL automáticamente.
+Spring Data JPA is an abstraction over Hibernate/JPA that simplifies data access. It allows defining relationships between entities with annotations and generates SQL automatically.
 
 ---
 
-## Modelo de datos del proyecto
+## Project data model
 
 ```
 WebsiteSource ──< ProductListing >── Product
@@ -20,13 +20,13 @@ WebsiteSource ──< ProductListing >── Product
                     PriceHistory
 ```
 
-Un `Product` puede tener listings en varios sitios. Cada `ProductListing` registra el precio actual en un sitio concreto. `PriceHistory` guarda el histórico de precios.
+A `Product` can have listings on multiple sites. Each `ProductListing` records the current price on a specific site. `PriceHistory` stores the price history over time.
 
 ---
 
-## Relaciones implementadas
+## Relationships implemented
 
-### @ManyToOne con FetchType.LAZY
+### @ManyToOne with FetchType.LAZY
 
 ```java
 // ProductListing.java
@@ -39,11 +39,11 @@ private Product product;
 private WebsiteSource source;
 ```
 
-**FetchType.LAZY**: La entidad relacionada se carga solo cuando se accede al getter. Evita N+1 queries y carga innecesaria de datos.
+**FetchType.LAZY**: The related entity is loaded only when the getter is accessed. Avoids N+1 queries and unnecessary data loading.
 
-**FetchType.EAGER** (evitado): Carga la entidad relacionada siempre, incluso cuando no la necesitas. Causa problemas de rendimiento.
+**FetchType.EAGER** (avoided): Always loads the related entity, even when not needed. Causes performance issues.
 
-### @OneToMany con CascadeType
+### @OneToMany with CascadeType
 
 ```java
 // Product.java
@@ -51,9 +51,9 @@ private WebsiteSource source;
 private List<ProductListing> listings;
 ```
 
-`mappedBy = "product"` indica que la FK está en la tabla de `ProductListing`, no en `Product`. Sin esto, Hibernate crearía una tabla intermedia innecesaria.
+`mappedBy = "product"` indicates that the FK is in the `ProductListing` table, not in `Product`. Without this, Hibernate would create an unnecessary join table.
 
-### Restricción UNIQUE en combinación de columnas
+### UNIQUE constraint on column combination
 
 ```java
 // ProductListing.java
@@ -62,26 +62,26 @@ private List<ProductListing> listings;
 ))
 ```
 
-Garantiza que no puede haber dos listings del mismo producto en el mismo sitio.
+Guarantees that there cannot be two listings for the same product on the same site.
 
 ---
 
 ## Flyway migrations vs ddl-auto
 
-Decisión clave: usamos Flyway para gestionar el schema, no `ddl-auto: create`.
+Key decision: we use Flyway to manage the schema, not `ddl-auto: create`.
 
 ```yaml
 # application.yml
 spring:
   jpa:
     hibernate:
-      ddl-auto: validate   # Solo valida, no modifica el schema
+      ddl-auto: validate   # Only validates, does not modify the schema
   flyway:
     enabled: true
     locations: classpath:db/migration
 ```
 
-Con `validate`, Hibernate comprueba al arrancar que el schema de la BD coincide con las entidades. Si hay diferencia, falla con error claro.
+With `validate`, Hibernate checks at startup that the DB schema matches the entities. If there is a discrepancy, it fails with a clear error.
 
 ```sql
 -- V1__create_website_sources.sql
@@ -96,19 +96,19 @@ CREATE TABLE website_sources (
 
 ---
 
-## Error encontrado: @Lob vs TEXT
+## Bug found: @Lob vs TEXT
 
 ```java
-// ❌ Error inicial
+// ❌ Initial mistake
 @Lob
-private String errorMessage;  // Hibernate espera tipo 'oid' (CLOB)
+private String errorMessage;  // Hibernate expects type 'oid' (CLOB)
 
-// ✅ Corrección
+// ✅ Fix
 @Column(columnDefinition = "TEXT")
-private String errorMessage;  // Tipo TEXT de PostgreSQL
+private String errorMessage;  // PostgreSQL TEXT type
 ```
 
-`@Lob` en PostgreSQL mapea a `oid`, pero Flyway crea `TEXT`. La solución es especificar explícitamente el tipo con `columnDefinition`.
+`@Lob` on PostgreSQL maps to `oid`, but Flyway creates `TEXT`. The fix is to explicitly specify the type with `columnDefinition`.
 
 ---
 
@@ -117,7 +117,7 @@ private String errorMessage;  // Tipo TEXT de PostgreSQL
 ```java
 // Product.java
 @Column
-private LocalDateTime deletedAt;  // null = activo, non-null = eliminado
+private LocalDateTime deletedAt;  // null = active, non-null = deleted
 
 // ProductRepository.java
 @Query("SELECT p FROM Product p WHERE p.deletedAt IS NULL")
@@ -131,11 +131,11 @@ public void delete(Long id) {
 }
 ```
 
-Ver Learning 006 para más detalles sobre soft deletes.
+See ADR-005 for more details on soft deletes.
 
 ---
 
-## TestContainers para tests de integración
+## Testcontainers for integration tests
 
 ```java
 @SpringBootTest
@@ -157,24 +157,24 @@ class ProductServiceIntegrationTest {
 }
 ```
 
-Ver Learning 005 para más detalles sobre TestContainers.
+See Learning 005 for more details on Testcontainers.
 
 ---
 
-## Alternativas consideradas
+## Alternatives considered
 
-| Opción | Pros | Contras |
-|--------|------|---------|
-| **Spring Data JPA** ✅ | Estándar Spring, poco boilerplate | ORM overhead |
-| JOOQ | SQL tipado, rendimiento | Más verboso, curva de aprendizaje |
-| MyBatis | Control total del SQL | Mucho más código |
-| JDBC puro | Máximo control | Sin abstracción, verbosísimo |
+| Option | Pros | Cons |
+|---|---|---|
+| **Spring Data JPA** ✅ | Spring standard, little boilerplate | ORM overhead |
+| JOOQ | Type-safe SQL, performance | More verbose, learning curve |
+| MyBatis | Full SQL control | Much more code |
+| Plain JDBC | Maximum control | No abstraction, very verbose |
 
 ---
 
-## Referencias
+## References
 
 - [Spring Data JPA Reference](https://docs.spring.io/spring-data/jpa/docs/current/reference/html/)
 - [Flyway Documentation](https://flywaydb.org/documentation/)
-- Entidades: `Product.java`, `ProductListing.java`, `PriceHistory.java`
-- Migraciones: `src/main/resources/db/migration/`
+- Entities: `Product.java`, `ProductListing.java`, `PriceHistory.java`
+- Migrations: `src/main/resources/db/migration/`

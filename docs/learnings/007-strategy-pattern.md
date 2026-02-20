@@ -1,41 +1,41 @@
 # Learning 007: Strategy Pattern
 
-**Fase:** 2-4 (Amazon + MediaMarkt scrapers)
-**Fecha:** 2026-02
-**Tecnología:** Java, Spring Boot DI
+**Phase:** 2-4 (Amazon + MediaMarkt scrapers)
+**Date:** 2026-02
+**Technology:** Java, Spring Boot DI
 
 ---
 
-## ¿Qué es?
+## What is it?
 
-El **Strategy Pattern** es un patrón de diseño de comportamiento. Define una familia de algoritmos, encapsula cada uno en su propia clase, y los hace intercambiables. El cliente trabaja con la interfaz, sin conocer la implementación concreta.
+The **Strategy Pattern** is a behavioural design pattern. It defines a family of algorithms, encapsulates each one in its own class, and makes them interchangeable. The client works with the interface, without knowing the concrete implementation.
 
 ---
 
-## El problema que resuelve
+## The problem it solves
 
-Cada sitio web tiene HTML/API distinto. Sin Strategy Pattern:
+Each website has different HTML/API. Without the Strategy Pattern:
 
 ```java
-// ❌ Sin patrón: if/else en el código cliente
+// ❌ Without pattern: if/else in the client code
 public List<ScrapedProductDTO> scrape(String keyword, ScraperType type) {
     if (type == ScraperType.AMAZON) {
-        // lógica Amazon...
+        // Amazon logic...
     } else if (type == ScraperType.MEDIAMARKT) {
-        // lógica MediaMarkt...
-    } else if (type == ScraperType.NEW_SITE) {  // ← hay que modificar este método
+        // MediaMarkt logic...
+    } else if (type == ScraperType.NEW_SITE) {  // ← must modify this method
         // ...
     }
 }
 ```
 
-Cada sitio nuevo requiere modificar el código existente (viola el **Open/Closed Principle**).
+Every new site requires modifying existing code (violates the **Open/Closed Principle**).
 
 ---
 
-## Implementación en el proyecto
+## Implementation in the project
 
-### La interfaz (el contrato)
+### The interface (the contract)
 
 ```java
 // SiteScraper.java
@@ -46,7 +46,7 @@ public interface SiteScraper {
 }
 ```
 
-### Las estrategias concretas
+### The concrete strategies
 
 ```java
 // AmazonScraper.java
@@ -58,7 +58,7 @@ public class AmazonScraper implements SiteScraper {
 
     @Override
     public List<ScrapedProductDTO> scrape(String keyword, String category) {
-        // Lógica específica de Amazon (Jsoup, selectores HTML)
+        // Amazon-specific logic (Jsoup, HTML selectors)
     }
 }
 
@@ -71,14 +71,14 @@ public class MediaMarktScraper implements SiteScraper {
 
     @Override
     public List<ScrapedProductDTO> scrape(String keyword, String category) {
-        // Lógica específica de MediaMarkt (Jsoup + JSON-LD)
+        // MediaMarkt-specific logic (Jsoup + JSON-LD)
     }
 }
 ```
 
-### La fábrica (ScraperFactory)
+### The factory (ScraperFactory)
 
-`ScraperFactory` usa Spring DI para recoger automáticamente todos los beans que implementan `SiteScraper`:
+`ScraperFactory` uses Spring DI to automatically collect all beans implementing `SiteScraper`:
 
 ```java
 // ScraperFactory.java
@@ -109,44 +109,43 @@ public class ScraperFactory {
 }
 ```
 
-**Clave**: `ScraperFactory` recibe `List<SiteScraper>` en el constructor. Spring inyecta automáticamente todos los beans que implementen `SiteScraper`. No hay que registrar nada manualmente.
+**Key**: `ScraperFactory` receives `List<SiteScraper>` in its constructor. Spring automatically injects all beans implementing `SiteScraper`. No manual registration required.
 
-### Uso desde el cliente
+### Usage from the client
 
 ```java
-// Futuro ScrapingJobService.java
 SiteScraper scraper = scraperFactory.getScraper(ScraperType.AMAZON);
 List<ScrapedProductDTO> results = scraper.scrape("rtx 4070", "gpu");
 ```
 
 ---
 
-## Añadir un nuevo sitio
+## Adding a new site
 
-Para añadir soporte de un sitio nuevo solo hay que:
+To add support for a new site you only need to:
 
-1. Añadir el valor al enum `ScraperType`
-2. Crear una clase `@Service` que implemente `SiteScraper`
-3. ✅ Listo. Spring lo registra automáticamente en `ScraperFactory`
+1. Add the value to the `ScraperType` enum
+2. Create a `@Service` class implementing `SiteScraper`
+3. ✅ Done. Spring registers it automatically in `ScraperFactory`
 
-No hay que tocar `ScraperFactory` ni ningún código existente.
-
----
-
-## Comparación de alternativas
-
-| Opción | Pros | Contras |
-|--------|------|---------|
-| **Strategy Pattern** ✅ | Extensible, Open/Closed, testeable | Más clases |
-| if/else gigante | Simple al inicio | Se vuelve inmanejable, viola OCP |
-| Herencia (`AbstractScraper`) | Comparte código común | Herencia rígida, difícil de testear |
-| Plugins/reflection | Extensible sin recompile | Muy complejo, overkill |
+No changes to `ScraperFactory` or any existing code required.
 
 ---
 
-## Referencias
+## Comparison of alternatives
+
+| Option | Pros | Cons |
+|---|---|---|
+| **Strategy Pattern** ✅ | Extensible, Open/Closed, testable | More classes |
+| Giant if/else | Simple initially | Becomes unmanageable, violates OCP |
+| Inheritance (`AbstractScraper`) | Shares common code | Rigid inheritance, hard to test |
+| Plugins/reflection | Extensible without recompile | Very complex, overkill |
+
+---
+
+## References
 
 - [Strategy Pattern - Refactoring Guru](https://refactoring.guru/design-patterns/strategy)
 - [Open/Closed Principle](https://en.wikipedia.org/wiki/Open%E2%80%93closed_principle)
-- Ver ADR-001 para la decisión arquitectónica completa
+- See ADR-001 for the full architectural decision
 - `SiteScraper.java`, `AmazonScraper.java`, `MediaMarktScraper.java`, `ScraperFactory.java`

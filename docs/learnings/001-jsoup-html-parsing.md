@@ -1,26 +1,26 @@
 # Learning 001: Jsoup HTML Parsing
 
-**Fase:** 2 (Amazon Scraper)
-**Fecha:** 2026-02
-**Tecnología:** Jsoup 1.17.2
+**Phase:** 2 (Amazon Scraper)
+**Date:** 2026-02
+**Technology:** Jsoup 1.17.2
 
 ---
 
-## ¿Qué es?
+## What is it?
 
-Jsoup es una librería Java para parsear, extraer y manipular HTML. Proporciona una API similar a jQuery para navegar el DOM con selectores CSS.
-
----
-
-## ¿Por qué lo usamos?
-
-Necesitábamos extraer datos estructurados (nombre, precio, imagen, URL) desde páginas HTML de Amazon. Jsoup permite hacer HTTP requests y parsear el HTML resultante en una sola llamada, con selectores CSS intuitivos.
+Jsoup is a Java library for parsing, extracting and manipulating HTML. It provides a jQuery-like API for navigating the DOM with CSS selectors.
 
 ---
 
-## Cómo funciona en el proyecto
+## Why do we use it?
 
-### 1. Fetch + parse en una llamada
+We needed to extract structured data (name, price, image, URL) from Amazon HTML pages. Jsoup allows making HTTP requests and parsing the resulting HTML in a single call, with intuitive CSS selectors.
+
+---
+
+## How it works in the project
+
+### 1. Fetch + parse in a single call
 
 ```java
 Document doc = Jsoup.connect(searchUrl)
@@ -31,37 +31,37 @@ Document doc = Jsoup.connect(searchUrl)
         .get();
 ```
 
-### 2. Selección de elementos con CSS selectors
+### 2. Element selection with CSS selectors
 
 ```java
-// Seleccionar todos los resultados de búsqueda de Amazon
+// Select all Amazon search results
 Elements items = doc.select("[data-component-type=s-search-result]");
 
-// Extraer el nombre del producto
+// Extract product name
 Element titleElement = item.selectFirst("h2 a span");
 String name = titleElement.text().trim();
 
-// Extraer imagen
+// Extract image
 Element img = item.selectFirst(".s-image");
 String imageUrl = img.attr("src");
 ```
 
-### 3. Construcción de URLs absolutas
+### 3. Building absolute URLs
 
 ```java
 Element link = item.selectFirst("h2 a");
 String href = link.attr("href");
 if (href.startsWith("/")) {
-    return BASE_URL + href;  // Relativa → absoluta
+    return BASE_URL + href;  // Relative → absolute
 }
 return href;
 ```
 
 ---
 
-## Técnica clave: HTML fixtures en tests
+## Key technique: HTML fixtures in tests
 
-Para no hacer HTTP requests reales en los tests, guardamos HTML estático como fixture:
+To avoid making real HTTP requests in tests, we save static HTML as fixtures:
 
 ```java
 // AmazonScraperTest
@@ -73,50 +73,50 @@ Document doc = Jsoup.parse(
 List<ScrapedProductDTO> products = scraper.parseSearchResults(doc);
 ```
 
-Ventajas:
-- Tests deterministas (no dependen de que Amazon devuelva lo mismo)
-- Tests rápidos (sin red)
-- Tests que no consumen rate limit real
+Advantages:
+- Deterministic tests (not dependent on Amazon returning the same HTML)
+- Fast tests (no network)
+- Tests that do not consume real rate limit
 
 ---
 
-## Limitación importante encontrada
+## Important limitation found
 
-Jsoup **no ejecuta JavaScript**. Varios sitios usan React/Next.js y cargan el contenido de forma dinámica, por lo que el HTML que devuelve Jsoup está vacío de datos.
+Jsoup **does not execute JavaScript**. Several sites use React/Next.js and load content dynamically, so the HTML Jsoup receives is empty of data.
 
-**Soluciones según el caso:**
-- Buscar endpoints JSON internos de la web (API calls del browser)
-- Buscar JSON-LD embebido en el HTML (schema.org)
-- Usar Selenium/Playwright para renderizado JS (mucho más complejo)
+**Solutions depending on the case:**
+- Find the site's internal JSON endpoints (browser API calls)
+- Find embedded JSON-LD in the HTML (schema.org)
+- Use Selenium/Playwright for JS rendering (much more complex)
 
-Ver ADR-003 para cómo se resolvió en MediaMarkt.
-
----
-
-## Selectores CSS más usados
-
-| Selector | Ejemplo | Uso |
-|----------|---------|-----|
-| `[attr=value]` | `[data-component-type=s-search-result]` | Atributo exacto |
-| `.className` | `.a-price-whole` | Clase CSS |
-| `parent child` | `h2 a span` | Descendiente |
-| `element` | `img` | Por tag |
-| `:first-child` | `h2:first-child` | Posición |
+See ADR-004 for how this was resolved for MediaMarkt.
 
 ---
 
-## Alternativas consideradas
+## Most commonly used CSS selectors
 
-| Opción | Pros | Contras |
-|--------|------|---------|
-| **Jsoup** ✅ | Simple, sin deps extra, rápido | No ejecuta JS |
-| HtmlUnit | Ejecuta algo de JS | Lento, inestable |
-| Selenium | JS completo | ChromeDriver, lento, complejo |
-| Playwright | JS completo, más moderno | Deps pesadas |
+| Selector | Example | Use |
+|---|---|---|
+| `[attr=value]` | `[data-component-type=s-search-result]` | Exact attribute |
+| `.className` | `.a-price-whole` | CSS class |
+| `parent child` | `h2 a span` | Descendant |
+| `element` | `img` | By tag |
+| `:first-child` | `h2:first-child` | Position |
 
 ---
 
-## Referencias
+## Alternatives considered
+
+| Option | Pros | Cons |
+|---|---|---|
+| **Jsoup** ✅ | Simple, no extra deps, fast | Does not execute JS |
+| HtmlUnit | Executes some JS | Slow, unstable |
+| Selenium | Full JS | ChromeDriver, slow, complex |
+| Playwright | Full JS, more modern | Heavy dependencies |
+
+---
+
+## References
 
 - [Jsoup Cookbook](https://jsoup.org/cookbook/)
 - [CSS Selector Reference](https://jsoup.org/apidocs/org/jsoup/select/Selector.html)

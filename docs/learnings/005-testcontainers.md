@@ -1,32 +1,32 @@
-# Learning 005: TestContainers
+# Learning 005: Testcontainers
 
-**Fase:** 3 (Product CRUD)
-**Fecha:** 2026-02
-**Tecnología:** TestContainers 1.19+, JUnit 5
-
----
-
-## ¿Qué es?
-
-TestContainers es una librería Java que levanta contenedores Docker reales durante los tests de integración. Permite testear contra una base de datos PostgreSQL real en lugar de usar H2 en memoria.
+**Phase:** 3 (Product CRUD)
+**Date:** 2026-02
+**Technology:** Testcontainers 1.19+, JUnit 5
 
 ---
 
-## ¿Por qué lo usamos?
+## What is it?
 
-Los tests con H2 (base de datos en memoria) tienen un problema fundamental: H2 no es PostgreSQL. Las diferencias incluyen:
-
-- Tipos de datos distintos (ej: `TEXT` vs `CLOB`)
-- Dialecto SQL distinto
-- Comportamiento diferente en constraints, índices, etc.
-
-Con TestContainers, los tests de integración usan **exactamente el mismo motor** que producción.
+Testcontainers is a Java library that spins up real Docker containers during integration tests. It allows testing against a real PostgreSQL database instead of using an in-memory H2.
 
 ---
 
-## Implementación en el proyecto
+## Why do we use it?
 
-### Dependencia en pom.xml
+Tests with H2 (in-memory database) have a fundamental problem: H2 is not PostgreSQL. Differences include:
+
+- Different data types (e.g. `TEXT` vs `CLOB`)
+- Different SQL dialect
+- Different behaviour with constraints, indexes, etc.
+
+With Testcontainers, integration tests use **exactly the same engine** as production.
+
+---
+
+## Implementation in the project
+
+### Dependency in pom.xml
 
 ```xml
 <dependency>
@@ -41,7 +41,7 @@ Con TestContainers, los tests de integración usan **exactamente el mismo motor*
 </dependency>
 ```
 
-### Setup del test
+### Test setup
 
 ```java
 @SpringBootTest
@@ -67,17 +67,17 @@ class ProductServiceIntegrationTest {
 }
 ```
 
-### Por qué `static`
+### Why `static`
 
-El container es `static` para que se levante una sola vez para toda la clase, no una vez por test. Levantar un contenedor Docker tarda ~3-5 segundos, hacerlo por cada test sería prohibitivo.
+The container is `static` so that it starts once for the entire class, not once per test. Starting a Docker container takes ~3-5 seconds; doing so per test would be prohibitive.
 
-### `@Transactional` en los tests
+### `@Transactional` in tests
 
-Con `@Transactional` en la clase de test, cada test se ejecuta dentro de una transacción que se hace rollback al final. Esto garantiza que los tests son independientes y no se contaminan entre sí.
+With `@Transactional` on the test class, each test runs inside a transaction that is rolled back at the end. This guarantees tests are independent and do not contaminate each other.
 
 ---
 
-## Ejemplo de test de integración
+## Integration test example
 
 ```java
 @Test
@@ -94,15 +94,12 @@ void should_CreateProduct_Successfully() {
 
 @Test
 void should_SoftDelete_And_NotReturnInFindAll() {
-    // Crear producto
     ProductDTO dto = new ProductDTO();
     dto.setName("GTX 1080");
     ProductDTO saved = productService.create(dto);
 
-    // Eliminar (soft delete)
     productService.delete(saved.getId());
 
-    // No debe aparecer en la lista
     List<ProductDTO> active = productService.findAll(null, null, null, null);
     assertThat(active).noneMatch(p -> p.getId().equals(saved.getId()));
 }
@@ -110,35 +107,35 @@ void should_SoftDelete_And_NotReturnInFindAll() {
 
 ---
 
-## Flyway con TestContainers
+## Flyway with Testcontainers
 
-Flyway ejecuta automáticamente las migraciones al arrancar Spring en el contexto de test. Esto garantiza que el schema de test siempre está actualizado con el mismo script que producción.
-
----
-
-## Comparación con alternativas
-
-| Opción | Pros | Contras |
-|--------|------|---------|
-| **TestContainers** ✅ | Base de datos real, fiel a producción | Requiere Docker, más lento que H2 |
-| H2 in-memory | Rapidísimo, sin Docker | Dialecto diferente, puede ocultar bugs |
-| BD de test dedicada | Datos persistentes | Contaminación entre tests, gestión manual |
-| Mockito mock de repository | Ultra rápido | No testa la integración real con BD |
+Flyway automatically runs migrations when Spring starts in the test context. This guarantees that the test schema is always up to date with the same scripts used in production.
 
 ---
 
-## Tiempo de ejecución
+## Comparison with alternatives
 
-En este proyecto los tests de integración tardan ~5-8 segundos (mayormente levantar el contenedor la primera vez). Los tests unitarios tardan <0.5s.
-
-La estrategia es:
-- **Tests unitarios** (scrapers, parsers): sin Spring, sin BD, rapidísimos
-- **Tests de integración** (ProductService): TestContainers, prueban la capa completa
+| Option | Pros | Cons |
+|---|---|---|
+| **Testcontainers** ✅ | Real database, faithful to production | Requires Docker, slower than H2 |
+| H2 in-memory | Very fast, no Docker | Different dialect, can hide bugs |
+| Dedicated test DB | Persistent data | Test contamination, manual management |
+| Mockito repository mock | Ultra fast | Does not test real DB integration |
 
 ---
 
-## Referencias
+## Execution time
 
-- [TestContainers Documentation](https://testcontainers.com/guides/getting-started-with-testcontainers-for-java/)
-- [Spring Boot + TestContainers](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.testcontainers)
+In this project, integration tests take ~5-8 seconds (mostly starting the container the first time). Unit tests take <0.5s.
+
+The strategy is:
+- **Unit tests** (scrapers, parsers): no Spring, no DB, very fast
+- **Integration tests** (ProductService): Testcontainers, test the full stack
+
+---
+
+## References
+
+- [Testcontainers Documentation](https://testcontainers.com/guides/getting-started-with-testcontainers-for-java/)
+- [Spring Boot + Testcontainers](https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.testing.testcontainers)
 - `ProductServiceIntegrationTest.java`
